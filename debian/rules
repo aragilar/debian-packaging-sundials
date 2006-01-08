@@ -81,11 +81,7 @@ install: build
 	install -d $(debusr)/include
 	install -d $(debdoc)/$(libpkg)
 	$(MAKE) install prefix=$(debusr)
-	install $(CURDIR)/cvode/doc/cv_guide.pdf	\
-		$(CURDIR)/cvodes/doc/cvs_guide.pdf	\
-		$(CURDIR)/ida/doc/ida_guide.pdf		\
-		$(CURDIR)/kinsol/doc/kin_guide.pdf	\
-		$(debdoc)/$(libpkg)
+	
 	# install lintian override file
 	install -m 644 -D debian/$(libpkg).lintian \
 	    $(debtmp)/usr/share/lintian/overrides/$(libpkg)
@@ -93,7 +89,11 @@ install: build
 
 # Build architecture-independent files here.
 binary-indep: build install
-# We have nothing to do by default.
+	install $(CURDIR)/cvode/doc/cv_guide.pdf	\
+		$(CURDIR)/cvodes/doc/cvs_guide.pdf	\
+		$(CURDIR)/ida/doc/ida_guide.pdf		\
+		$(CURDIR)/kinsol/doc/kin_guide.pdf	\
+		$(debdoc)/$(libpkg)
 
 # Build architecture-dependent files here.
 binary-arch: build install

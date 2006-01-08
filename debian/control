@@ -38,7 +38,7 @@ Description: SUit of Nonlinear and DIfferential/ALgebraic equation Solvers
 
 Package: libsundials-serial-doc
 Section: doc
-Architecture: any
+Architecture: all
 Depends: libsundials-serial
 Recommends: libsundials-serial-dev
 Description: SUNDIALS documentation files

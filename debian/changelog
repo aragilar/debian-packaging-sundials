@@ -1,3 +1,12 @@
+sundials (2.1.1-6) unstable; urgency=low
+
+   +++ Changes by Thomas Weber
+
+  * debian/control: make doc package architecture "all"
+    debian/rules: dito (closes: #346392)
+
+ -- Debian Octave Group <pkg-octave-devel@lists.alioth.debian.org>  Sun,  8 Jan 2006 23:24:39 +0100
+
 sundials (2.1.1-5) unstable; urgency=low
 
    +++ Changes by Rafael Laboissiere
