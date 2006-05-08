@@ -1,3 +1,29 @@
+sundials (2.2.0-1) unstable; urgency=low
+
+  [ Andrey Romanenko ]
+  * New upstream release
+  * debian/libsundials-serial-dev.install: add lines to copy the content of
+    include/sundials subdirectories
+  * config/ltmain.sh: upgrade with the current version to solve the .so
+    extension problem
+  * debian/libsundials-serial.lintian: removed
+  * debian/lintian/libsundials-serial0: new file
+
+  [ Rafael Laboissiere ]
+  * Switched to cdbs
+  * Since upstream is using soversion numbers for the libraries, the
+    package is renamed from libsundials-serial to libsundials-serial0
+
+ -- Rafael Laboissiere <rafael@debian.org>  Mon,  8 May 2006 12:32:29 +0200
+
+sundials (2.1.1-7) unstable; urgency=low
+
+  +++ Changes by Rafael Laboissiere
+
+  * debian/control: Bumped Standards-Version to 3.7.0 (no changes needed)
+
+ -- Debian Octave Group <pkg-octave-devel@lists.alioth.debian.org>  Thu, 3 May 2006 22:24:39 +0000
+
 sundials (2.1.1-6) unstable; urgency=low
 
    +++ Changes by Thomas Weber
@@ -56,14 +82,15 @@ libsundials-serial (2.1.1-1) unstable; urgency=low
  -- Andrey Romanenko <andrey@enginum.com>  Fri, 21 Oct 2005 17:19:32 +0100
 
 Local Variables:
-debian-changelog-full-name: "Debian Octave Group"
-debian-changelog-mailing-address: "pkg-octave-devel@lists.alioth.debian.org"
-eval: (add-local-hook
-  'debian-changelog-add-version-hook
-  (lambda ()
-    (save-excursion
-      (forward-line -1)
-      (beginning-of-line)
-      (insert "\n   NOT YET RELEASED!\n\n   +++ Changes by "
-        (or (getenv "DEBFULLNAME") (user-full-name)) "\n"))))
+eval: (progn
+  (make-local-hook 'debian-changelog-add-version-hook)
+  (add-hook
+    'debian-changelog-add-version-hook
+      (lambda ()
+      (save-excursion
+        (forward-line -1)
+        (beginning-of-line)
+        (insert "\n  NOT YET RELEASED!\n\n  [ "
+          (or (getenv "DEBFULLNAME") (user-full-name)) " ]")))
+    nil t))
 End:

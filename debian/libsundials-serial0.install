@@ -1,0 +1,2 @@
+debian/tmp/usr/lib/lib*.so.*
+debian/lintian/libsundials-serial0 usr/share/lintian/overrides

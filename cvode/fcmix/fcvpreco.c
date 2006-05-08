@@ -1,17 +1,18 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.12.2.3 $
- * $Date: 2005/04/06 23:32:53 $
+ * $Revision: 1.24 $
+ * $Date: 2006/02/02 00:30:58 $
  * ----------------------------------------------------------------- 
- * Programmers: Alan C. Hindmarsh and Radu Serban @ LLNL
+ * Programmer(s): Alan C. Hindmarsh, Radu Serban and
+ *                Aaron Collier @ LLNL
  * -----------------------------------------------------------------
  * Copyright (c) 2002, The Regents of the University of California.
  * Produced at the Lawrence Livermore National Laboratory.
  * All rights reserved.
  * For details, see sundials/cvode/LICENSE.
  * -----------------------------------------------------------------
- * The C function FCVPSet is to interface between the CVSPGMR module
- * and the user-supplied preconditioner setup routine FCVPSET.
+ * The C function FCVPSet is to interface between the CVSP*
+ * module and the user-supplied preconditioner setup routine FCVPSET.
  * Note the use of the generic name FCV_PSET below.
  * -----------------------------------------------------------------
  */
@@ -19,11 +20,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "cvspgmr.h"        /* CVSpgmr prototype                              */
-#include "fcvode.h"         /* actual function names, prototypes and
-			       global variables                               */
-#include "nvector.h"        /* definitions of type N_Vector and vector macros */
-#include "sundialstypes.h"  /* definition of type realtype                    */
+#include "cvode_spils.h"
+#include "fcvode.h"           /* actual fn. names, prototypes and global vars.  */
+#include "cvode_impl.h"       /* definition of CVodeMem type                    */
+#include "sundials_nvector.h" /* definitions of type N_Vector and vector macros */
+#include "sundials_types.h"   /* definition of type realtype                    */
 
 /*********************************************************************/
 
@@ -32,32 +33,48 @@
 #ifdef __cplusplus  /* wrapper to enable C++ usage */
 extern "C" {
 #endif
-  extern void FCV_PSET(realtype*, realtype*, realtype*, booleantype*, 
-                       booleantype*, realtype*, realtype*, realtype*,
-                       realtype*, realtype*, realtype*, int*);
-  extern void FCV_PSOL(realtype*, realtype*, realtype*, realtype*, 
-                       realtype*, realtype*, realtype*, 
-                       realtype*, int*, realtype*, int*);
+
+  extern void FCV_PSET(realtype*, realtype*, realtype*,  /* T, Y, FY */
+                       booleantype*, booleantype*,       /* JOK, JCUR */
+                       realtype*, realtype*,             /* GAMMA, H */
+                       long int*, realtype*,             /* IPAR, RPAR */
+                       realtype*, realtype*, realtype*,  /* W1, W2, W3 */
+                       int*);                            /* IER */
+
+  extern void FCV_PSOL(realtype*, realtype*, realtype*,  /* T, Y, FY */
+                       realtype*, realtype*,             /* R, Z */
+                       realtype*, realtype*,             /* GAMMA, DELTA */
+                       int*,                             /* LR */
+                       long int*, realtype*,             /* IPAR, RPAR */
+                       realtype*,                        /* WRK */
+                       int*);                            /* IER */
+
 #ifdef __cplusplus
 }
 #endif
 
 /***************************************************************************/
 
-void FCV_SPGMRSETPREC(int *flag, int *ier)
+void FCV_SPILSSETPREC(int *flag, int *ier)
 {
-  if (*flag == 0) CVSpgmrSetPreconditioner(CV_cvodemem, NULL, NULL, NULL);
-  else CVSpgmrSetPreconditioner(CV_cvodemem, FCVPSet, FCVPSol, NULL);
+  CVodeMem cv_mem;
+
+  if (*flag == 0) {
+    *ier = CVSpilsSetPreconditioner(CV_cvodemem, NULL, NULL, NULL);
+  } else {
+    cv_mem = (CVodeMem) CV_cvodemem;
+    *ier = CVSpilsSetPreconditioner(CV_cvodemem, FCVPSet, FCVPSol, cv_mem->cv_f_data);
+  }
 }
 
 /***************************************************************************/
 
 /* C function FCVPSet to interface between CVODE and a Fortran subroutine
    FCVPSET for setup of a Krylov preconditioner.
-   Addresses of Nlocal, t, jok, gamma, h, uround, y, fy, ewt, vtemp1, vtemp2, 
-   vtemp3, and the address jcurPtr are passed to FCVPSET, using
-   the routine N_VGetArrayPointer from NVECTOR.  A return flag ier from FCVPSET
-   is returned by FCVPSet.
+   Addresses of t, y, fy, jok, gamma, h, vtemp1, vtemp2, vtemp3, and the 
+   address jcurPtr are passed to FCVPSET, using the routine
+   N_VGetArrayPointer from NVECTOR.
+   A return flag ier from FCVPSET is returned by FCVPSet.
    Auxiliary data is assumed to be communicated by common blocks. */
 
 int FCVPSet(realtype t, N_Vector y, N_Vector fy, booleantype jok,
@@ -65,28 +82,24 @@ int FCVPSet(realtype t, N_Vector y, N_Vector fy, booleantype jok,
             void *P_data,
             N_Vector vtemp1, N_Vector vtemp2, N_Vector vtemp3)
 {
-  N_Vector ewt;
-  realtype h;
-  realtype *ydata, *fydata, *ewtdata, *v1data, *v2data, *v3data;
-
   int ier = 0;
-  
-  ewt = N_VClone(y);
+  realtype *ydata, *fydata, *v1data, *v2data, *v3data;
+  realtype h;
+  FCVUserData CV_userdata;
 
-  CVodeGetErrWeights(CV_cvodemem, ewt);
   CVodeGetLastStep(CV_cvodemem, &h);
 
   ydata   = N_VGetArrayPointer(y);
   fydata  = N_VGetArrayPointer(fy);
-  ewtdata = N_VGetArrayPointer(ewt);
   v1data  = N_VGetArrayPointer(vtemp1);
   v2data  = N_VGetArrayPointer(vtemp2);
   v3data  = N_VGetArrayPointer(vtemp3);
 
-  FCV_PSET(&t, ydata, fydata, &jok, jcurPtr, &gamma, ewtdata,
-           &h, v1data, v2data, v3data, &ier);
+  CV_userdata = (FCVUserData) P_data;
 
-  N_VDestroy(ewt);
+  FCV_PSET(&t, ydata, fydata, &jok, jcurPtr, &gamma, &h,
+           CV_userdata->ipar, CV_userdata->rpar,
+           v1data, v2data, v3data, &ier);
 
   return(ier);
 }
@@ -95,7 +108,7 @@ int FCVPSet(realtype t, N_Vector y, N_Vector fy, booleantype jok,
 
 /* C function FCVPSol to interface between CVODE and a Fortran subroutine
    FCVPSOL for solution of a Krylov preconditioner.
-   Addresses of t, gamma, delta, lr, y, fy, vtemp, ewt, r, and z are
+   Addresses of t, y, fy, gamma, delta, lr, vtemp, r, and z are
    passed to FCVPSOL, using the routine N_VGetArrayPointer from NVECTOR.
    A return flag ier from FCVPSOL is returned by FCVPSol.
    Auxiliary data is assumed to be communicated by Common blocks. */
@@ -105,26 +118,20 @@ int FCVPSol(realtype t, N_Vector y, N_Vector fy,
             realtype gamma, realtype delta,
             int lr, void *P_data, N_Vector vtemp)
 {
-  N_Vector ewt;
-  realtype *ydata, *fydata, *vtdata, *ewtdata, *rdata, *zdata;
-
   int ier = 0;
-
-  ewt = N_VClone(y);
-
-  CVodeGetErrWeights(CV_cvodemem, ewt);
+  realtype *ydata, *fydata, *vtdata, *rdata, *zdata;
+  FCVUserData CV_userdata;
 
   ydata   = N_VGetArrayPointer(y);
   fydata  = N_VGetArrayPointer(fy);
   vtdata  = N_VGetArrayPointer(vtemp);
-  ewtdata = N_VGetArrayPointer(ewt);
   rdata   = N_VGetArrayPointer(r);
   zdata   = N_VGetArrayPointer(z);
 
-  FCV_PSOL(&t, ydata, fydata, vtdata, &gamma, ewtdata, &delta,
-           rdata, &lr, zdata, &ier);
+  CV_userdata = (FCVUserData) P_data;
 
-  N_VDestroy(ewt);
+  FCV_PSOL(&t, ydata, fydata, rdata, zdata, &gamma, &delta, &lr, 
+           CV_userdata->ipar, CV_userdata->rpar, vtdata, &ier);
 
   return(ier);
 }

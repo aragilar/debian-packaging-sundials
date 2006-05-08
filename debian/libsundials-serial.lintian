@@ -1,7 +1,0 @@
-libsundials-serial: no-shlibs-control-file usr/lib/libsundials_shared.so
-libsundials-serial: no-shlibs-control-file usr/lib/libsundials_cvode.so
-libsundials-serial: no-shlibs-control-file usr/lib/libsundials_nvecserial.so
-libsundials-serial: no-shlibs-control-file usr/lib/libsundials_ida.so
-libsundials-serial: no-shlibs-control-file usr/lib/libsundials_cvodes.so
-libsundials-serial: no-shlibs-control-file usr/lib/libsundials_kinsol.so
-libsundials-serial: package-name-doesnt-match-sonames libsundials-shared libsundials-kinsol libsundials-cvode libsundials-nvecserial libsundials-ida libsundials-cvodes

@@ -2,27 +2,11 @@ Source: sundials
 Priority: optional
 Maintainer: Debian Octave Group <pkg-octave-devel@lists.alioth.debian.org>
 Uploaders: Rafael Laboissiere <rafael@debian.org>
-Build-Depends: debhelper (>= 4.0.0), autotools-dev
-Standards-Version: 3.6.2
+Build-Depends: debhelper (>= 4.0.0), autotools-dev, cdbs
+Standards-Version: 3.7.0
 Section: libs
 
-Package: libsundials-serial-dev
-Section: libdevel
-Architecture: any
-Depends: libsundials-serial (= ${Source-Version})
-Description: SUNDIALS development files
- The family of solvers referred to as SUNDIALS (SUit of Nonlinear and
- DIfferential/ALgebraic equation Solvers) consists of solvers CVODE
- (for ODE systems), CVODES (ODE with sensitivity analysis capabilities),
- IDA (for differential-algebraic systems), and KINSOL (for nonlinear
- algebraic systems).
- .
- This package contains files necessary for development applications using
- SUNDIALS in C and, in case of FCVODE and FKINSOL, Fortran.
- .
- Homepage: http://www.llnl.gov/CASC/sundials/
-
-Package: libsundials-serial
+Package: libsundials-serial0
 Section: libs
 Architecture: any
 Depends: ${shlibs:Depends}
@@ -36,10 +20,26 @@ Description: SUit of Nonlinear and DIfferential/ALgebraic equation Solvers
  .
  Homepage: http://www.llnl.gov/CASC/sundials/
 
+Package: libsundials-serial-dev
+Section: libdevel
+Architecture: any
+Depends: libsundials-serial0 (= ${Source-Version})
+Conflicts: libsundials-serial
+Description: SUNDIALS development files
+ The family of solvers referred to as SUNDIALS (SUit of Nonlinear and
+ DIfferential/ALgebraic equation Solvers) consists of solvers CVODE
+ (for ODE systems), CVODES (ODE with sensitivity analysis capabilities),
+ IDA (for differential-algebraic systems), and KINSOL (for nonlinear
+ algebraic systems).
+ .
+ This package contains files necessary for development applications using
+ SUNDIALS in C and, in case of FCVODE and FKINSOL, Fortran.
+ .
+ Homepage: http://www.llnl.gov/CASC/sundials/
+
 Package: libsundials-serial-doc
 Section: doc
 Architecture: all
-Depends: libsundials-serial
 Recommends: libsundials-serial-dev
 Description: SUNDIALS documentation files
  The family of solvers referred to as SUNDIALS (SUit of Nonlinear and

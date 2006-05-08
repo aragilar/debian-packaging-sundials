@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.19.2.2 $
- * $Date: 2005/04/28 21:36:07 $
+ * $Revision: 1.28 $
+ * $Date: 2006/01/25 23:08:13 $
  * -----------------------------------------------------------------
  * Programmer(s): Scott D. Cohen, Alan C. Hindmarsh, Radu Serban,
  *                and Aaron Collier @ LLNL
@@ -20,8 +20,7 @@
 #include <stdlib.h>
 
 #include "nvector_parallel.h"
-#include "sundialsmath.h"
-#include "sundialstypes.h"
+#include "sundials_math.h"
 
 #define ZERO   RCONST(0.0)
 #define HALF   RCONST(0.5)
@@ -87,10 +86,12 @@ N_Vector N_VNewEmpty_Parallel(MPI_Comm comm,
   } 
 
   /* Create vector */
+  v = NULL;
   v = (N_Vector) malloc(sizeof *v);
   if (v == NULL) return(NULL);
   
   /* Create vector operation structure */
+  ops = NULL;
   ops = (N_Vector_Ops) malloc(sizeof(struct _generic_N_Vector_Ops));
   if (ops == NULL) { free(v); return(NULL); }
 
@@ -121,19 +122,20 @@ N_Vector N_VNewEmpty_Parallel(MPI_Comm comm,
   ops->nvminquotient     = N_VMinQuotient_Parallel;
 
   /* Create content */
+  content = NULL;
   content = (N_VectorContent_Parallel) malloc(sizeof(struct _N_VectorContent_Parallel));
   if (content == NULL) { free(ops); free(v); return(NULL); }
 
   /* Attach lengths and communicator */
-  content->local_length = local_length;
+  content->local_length  = local_length;
   content->global_length = global_length;
-  content->comm = comm;
-  content->own_data = FALSE;
-  content->data = NULL;
+  content->comm          = comm;
+  content->own_data      = FALSE;
+  content->data          = NULL;
 
   /* Attach content and ops */
   v->content = content;
-  v->ops = ops;
+  v->ops     = ops;
 
   return(v);
 }
@@ -149,6 +151,7 @@ N_Vector N_VNew_Parallel(MPI_Comm comm,
   N_Vector v;
   realtype *data;
 
+  v = NULL;
   v = N_VNewEmpty_Parallel(comm, local_length, global_length);
   if (v == NULL) return(NULL);
 
@@ -156,12 +159,13 @@ N_Vector N_VNew_Parallel(MPI_Comm comm,
   if(local_length > 0) {
 
     /* Allocate memory */
+    data = NULL;
     data = (realtype *) malloc(local_length * sizeof(realtype));
-    if(data == NULL) {N_VDestroy_Parallel(v);return(NULL);}
+    if(data == NULL) { N_VDestroy_Parallel(v); return(NULL); }
 
     /* Attach data */
     NV_OWN_DATA_P(v) = TRUE;
-    NV_DATA_P(v) = data; 
+    NV_DATA_P(v)     = data; 
 
   }
 
@@ -179,13 +183,14 @@ N_Vector N_VMake_Parallel(MPI_Comm comm,
 {
   N_Vector v;
 
+  v = NULL;
   v = N_VNewEmpty_Parallel(comm, local_length, global_length);
   if (v == NULL) return(NULL);
 
   if (local_length > 0) {
     /* Attach data */
     NV_OWN_DATA_P(v) = FALSE;
-    NV_DATA_P(v) = v_data;
+    NV_DATA_P(v)     = v_data;
   }
 
   return(v);
@@ -195,21 +200,20 @@ N_Vector N_VMake_Parallel(MPI_Comm comm,
  * Function to create an array of new parallel vectors. 
  */
 
-N_Vector *N_VNewVectorArray_Parallel(int count, 
-                                     MPI_Comm comm, 
-                                     long int local_length,
-                                     long int global_length)
+N_Vector *N_VCloneVectorArray_Parallel(int count, N_Vector w)
 {
   N_Vector *vs;
   int j;
 
   if (count <= 0) return(NULL);
 
+  vs = NULL;
   vs = (N_Vector *) malloc(count * sizeof(N_Vector));
   if(vs == NULL) return(NULL);
 
-  for (j=0; j<count; j++) {
-    vs[j] = N_VNew_Parallel(comm, local_length, global_length);
+  for (j = 0; j < count; j++) {
+    vs[j] = NULL;
+    vs[j] = N_VClone_Parallel(w);
     if (vs[j] == NULL) {
       N_VDestroyVectorArray_Parallel(vs, j-1);
       return(NULL);
@@ -224,21 +228,20 @@ N_Vector *N_VNewVectorArray_Parallel(int count,
  * (NULL) data array.
  */
 
-N_Vector *N_VNewVectorArrayEmpty_Parallel(int count, 
-                                          MPI_Comm comm, 
-                                          long int local_length,
-                                          long int global_length)
+N_Vector *N_VCloneVectorArrayEmpty_Parallel(int count, N_Vector w)
 {
   N_Vector *vs;
   int j;
 
   if (count <= 0) return(NULL);
 
+  vs = NULL;
   vs = (N_Vector *) malloc(count * sizeof(N_Vector));
   if(vs == NULL) return(NULL);
 
-  for (j=0; j<count; j++) {
-    vs[j] = N_VNewEmpty_Parallel(comm, local_length, global_length);
+  for (j = 0; j < count; j++) {
+    vs[j] = NULL;
+    vs[j] = N_VCloneEmpty_Parallel(w);
     if (vs[j] == NULL) {
       N_VDestroyVectorArray_Parallel(vs, j-1);
       return(NULL);
@@ -249,7 +252,7 @@ N_Vector *N_VNewVectorArrayEmpty_Parallel(int count,
 }
 
 /* ----------------------------------------------------------------
- * Function to free an array created with N_VNewVectorArray_Parallel
+ * Function to free an array created with N_VCloneVectorArray_Parallel
  */
 
 void N_VDestroyVectorArray_Parallel(N_Vector *vs, int count)
@@ -258,7 +261,9 @@ void N_VDestroyVectorArray_Parallel(N_Vector *vs, int count)
 
   for (j = 0; j < count; j++) N_VDestroy_Parallel(vs[j]);
 
-  free(vs);
+  free(vs); vs = NULL;
+
+  return;
 }
 
 /* ---------------------------------------------------------------- 
@@ -270,19 +275,23 @@ void N_VPrint_Parallel(N_Vector x)
   long int i, N;
   realtype *xd;
 
+  xd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
 
-  for (i=0; i < N; i++) {
+  for (i = 0; i < N; i++) {
 #if defined(SUNDIALS_EXTENDED_PRECISION)
-    printf("%Lg\n", *xd++);
+    printf("%Lg\n", xd[i]);
 #elif defined(SUNDIALS_DOUBLE_PRECISION)
-    printf("%lg\n", *xd++);
+    printf("%lg\n", xd[i]);
 #else
-    printf("%g\n", *xd++);
+    printf("%g\n", xd[i]);
 #endif
   }
   printf("\n");
+
+  return;
 }
 
 /*
@@ -297,17 +306,15 @@ N_Vector N_VCloneEmpty_Parallel(N_Vector w)
   N_Vector_Ops ops;
   N_VectorContent_Parallel content;
 
-  v = NULL;
-  ops = NULL;
-  content = NULL;
-
   if (w == NULL) return(NULL);
 
   /* Create vector */
+  v = NULL;
   v = (N_Vector) malloc(sizeof *v);
   if (v == NULL) return(NULL);
   
   /* Create vector operation structure */
+  ops = NULL;
   ops = (N_Vector_Ops) malloc(sizeof(struct _generic_N_Vector_Ops));
   if (ops == NULL) { free(v); return(NULL); }
   
@@ -338,6 +345,7 @@ N_Vector N_VCloneEmpty_Parallel(N_Vector w)
   ops->nvminquotient     = w->ops->nvminquotient;
 
   /* Create content */  
+  content = NULL;
   content = (N_VectorContent_Parallel) malloc(sizeof(struct _N_VectorContent_Parallel));
   if (content == NULL) { free(ops); free(v); return(NULL); }
 
@@ -361,6 +369,7 @@ N_Vector N_VClone_Parallel(N_Vector w)
   realtype *data;
   long int local_length;
 
+  v = NULL;
   v = N_VCloneEmpty_Parallel(w);
   if (v == NULL) return(NULL);
 
@@ -370,12 +379,13 @@ N_Vector N_VClone_Parallel(N_Vector w)
   if(local_length > 0) {
 
     /* Allocate memory */
+    data = NULL;
     data = (realtype *) malloc(local_length * sizeof(realtype));
-    if(data == NULL) {N_VDestroy_Parallel(v);return(NULL);}
+    if(data == NULL) { N_VDestroy_Parallel(v); return(NULL); }
 
     /* Attach data */
     NV_OWN_DATA_P(v) = TRUE;
-    NV_DATA_P(v) = data;
+    NV_DATA_P(v)     = data;
   }
 
   return(v);
@@ -383,11 +393,15 @@ N_Vector N_VClone_Parallel(N_Vector w)
 
 void N_VDestroy_Parallel(N_Vector v)
 {
-  if ( (NV_OWN_DATA_P(v) == TRUE) && (NV_DATA_P(v) != NULL) ) 
+  if ((NV_OWN_DATA_P(v) == TRUE) && (NV_DATA_P(v) != NULL)) {
     free(NV_DATA_P(v));
-  free(v->content);
-  free(v->ops);
-  free(v);
+    NV_DATA_P(v) = NULL;
+  }
+  free(v->content); v->content = NULL;
+  free(v->ops); v->ops = NULL;
+  free(v); v = NULL;
+
+  return;
 }
 
 void N_VSpace_Parallel(N_Vector v, long int *lrw, long int *liw)
@@ -399,21 +413,21 @@ void N_VSpace_Parallel(N_Vector v, long int *lrw, long int *liw)
   MPI_Comm_size(comm, &npes);
   
   *lrw = NV_GLOBLENGTH_P(v);
-  *liw = 2 * npes;
+  *liw = 2*npes;
+
+  return;
 }
 
 realtype *N_VGetArrayPointer_Parallel(N_Vector v)
 {
-  realtype *v_data;
-
-  v_data = NV_DATA_P(v);
-
-  return(v_data);
+  return((realtype *) NV_DATA_P(v));
 }
 
 void N_VSetArrayPointer_Parallel(realtype *v_data, N_Vector v)
 {
   if (NV_LOCLENGTH_P(v) > 0) NV_DATA_P(v) = v_data;
+
+  return;
 }
 
 void N_VLinearSum_Parallel(realtype a, N_Vector x, realtype b, N_Vector y, N_Vector z)
@@ -423,13 +437,15 @@ void N_VLinearSum_Parallel(realtype a, N_Vector x, realtype b, N_Vector y, N_Vec
   N_Vector v1, v2;
   booleantype test;
 
+  xd = yd = zd = NULL;
+
   if ((b == ONE) && (z == y)) {    /* BLAS usage: axpy y <- ax+y */
-    Vaxpy_Parallel(a,x,y);
+    Vaxpy_Parallel(a, x, y);
     return;
   }
 
   if ((a == ONE) && (z == x)) {    /* BLAS usage: axpy x <- by+x */
-    Vaxpy_Parallel(b,y,x);
+    Vaxpy_Parallel(b, y, x);
     return;
   }
 
@@ -495,8 +511,10 @@ void N_VLinearSum_Parallel(realtype a, N_Vector x, realtype b, N_Vector y, N_Vec
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++) 
-    *zd++ = a * (*xd++) + b * (*yd++);
+  for (i = 0; i < N; i++)
+    zd[i] = (a*xd[i])+(b*yd[i]);
+
+  return;
 }
 
 void N_VConst_Parallel(realtype c, N_Vector z)
@@ -504,11 +522,14 @@ void N_VConst_Parallel(realtype c, N_Vector z)
   long int i, N;
   realtype *zd;
 
+  zd = NULL;
+
   N  = NV_LOCLENGTH_P(z);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++) 
-    *zd++ = c;
+  for (i = 0; i < N; i++) zd[i] = c;
+
+  return;
 }
 
 void N_VProd_Parallel(N_Vector x, N_Vector y, N_Vector z)
@@ -516,13 +537,17 @@ void N_VProd_Parallel(N_Vector x, N_Vector y, N_Vector z)
   long int i, N;
   realtype *xd, *yd, *zd;
 
+  xd = yd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = (*xd++) * (*yd++);
+  for (i = 0; i < N; i++)
+    zd[i] = xd[i]*yd[i];
+
+  return;
 }
 
 void N_VDiv_Parallel(N_Vector x, N_Vector y, N_Vector z)
@@ -530,19 +555,25 @@ void N_VDiv_Parallel(N_Vector x, N_Vector y, N_Vector z)
   long int i, N;
   realtype *xd, *yd, *zd;
 
+  xd = yd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = (*xd++) / (*yd++);
+  for (i = 0; i < N; i++)
+    zd[i] = xd[i]/yd[i];
+
+  return;
 }
 
 void N_VScale_Parallel(realtype c, N_Vector x, N_Vector z)
 {
   long int i, N;
   realtype *xd, *zd;
+
+  xd = zd = NULL;
 
   if (z == x) {       /* BLAS usage: scale x <- cx */
     VScaleBy_Parallel(c, x);
@@ -557,9 +588,11 @@ void N_VScale_Parallel(realtype c, N_Vector x, N_Vector z)
     N  = NV_LOCLENGTH_P(x);
     xd = NV_DATA_P(x);
     zd = NV_DATA_P(z);
-    for (i=0; i < N; i++) 
-      *zd++ = c * (*xd++);
+    for (i = 0; i < N; i++)
+      zd[i] = c*xd[i];
   }
+
+  return;
 }
 
 void N_VAbs_Parallel(N_Vector x, N_Vector z)
@@ -567,12 +600,16 @@ void N_VAbs_Parallel(N_Vector x, N_Vector z)
   long int i, N;
   realtype *xd, *zd;
 
+  xd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++, xd++, zd++)
-    *zd = ABS(*xd);
+  for (i = 0; i < N; i++)
+    zd[i] = ABS(xd[i]);
+
+  return;
 }
 
 void N_VInv_Parallel(N_Vector x, N_Vector z)
@@ -580,40 +617,52 @@ void N_VInv_Parallel(N_Vector x, N_Vector z)
   long int i, N;
   realtype *xd, *zd;
 
+  xd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = ONE / (*xd++);
+  for (i = 0; i < N; i++)
+    zd[i] = ONE/xd[i];
+
+  return;
 }
 
 void N_VAddConst_Parallel(N_Vector x, realtype b, N_Vector z)
 {
   long int i, N;
   realtype *xd, *zd;
-  
+
+  xd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   zd = NV_DATA_P(z);
   
-  for (i=0; i < N; i++) *zd++ = (*xd++) + b; 
+  for (i = 0; i < N; i++) zd[i] = xd[i]+b;
+
+  return;
 }
 
 realtype N_VDotProd_Parallel(N_Vector x, N_Vector y)
 {
   long int i, N;
-  realtype sum = ZERO, *xd, *yd, gsum;
+  realtype sum, *xd, *yd, gsum;
   MPI_Comm comm;
+
+  sum = ZERO;
+  xd = yd = NULL;
 
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   comm = NV_COMM_P(x);
 
-  for (i=0; i < N; i++) sum += xd[i] * yd[i];
+  for (i = 0; i < N; i++) sum += xd[i]*yd[i];
 
   gsum = VAllReduce_Parallel(sum, 1, comm);
+
   return(gsum);
 }
 
@@ -623,63 +672,74 @@ realtype N_VMaxNorm_Parallel(N_Vector x)
   realtype max, *xd, gmax;
   MPI_Comm comm;
 
+  xd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   comm = NV_COMM_P(x);
 
   max = ZERO;
 
-  for (i=0; i < N; i++, xd++) {
-    if (ABS(*xd) > max) max = ABS(*xd);
+  for (i = 0; i < N; i++) {
+    if (ABS(xd[i]) > max) max = ABS(xd[i]);
   }
    
   gmax = VAllReduce_Parallel(max, 2, comm);
+
   return(gmax);
 }
 
 realtype N_VWrmsNorm_Parallel(N_Vector x, N_Vector w)
 {
   long int i, N, N_global;
-  realtype sum = ZERO, prodi, *xd, *wd, gsum;
+  realtype sum, prodi, *xd, *wd, gsum;
   MPI_Comm comm;
 
-  N  = NV_LOCLENGTH_P(x);
+  sum = ZERO;
+  xd = wd = NULL;
+
+  N        = NV_LOCLENGTH_P(x);
   N_global = NV_GLOBLENGTH_P(x);
-  xd = NV_DATA_P(x);
-  wd = NV_DATA_P(w);
+  xd       = NV_DATA_P(x);
+  wd       = NV_DATA_P(w);
   comm = NV_COMM_P(x);
 
-  for (i=0; i < N; i++) {
-    prodi = (*xd++) * (*wd++);
-    sum += prodi * prodi;
+  for (i = 0; i < N; i++) {
+    prodi = xd[i]*wd[i];
+    sum += SQR(prodi);
   }
 
   gsum = VAllReduce_Parallel(sum, 1, comm);
-  return(RSqrt(gsum / N_global));
+
+  return(RSqrt(gsum/N_global));
 }
 
 realtype N_VWrmsNormMask_Parallel(N_Vector x, N_Vector w, N_Vector id)
 {
   long int i, N, N_global;
-  realtype sum = ZERO, prodi, *xd, *wd, *idd, gsum;
+  realtype sum, prodi, *xd, *wd, *idd, gsum;
   MPI_Comm comm;
 
-  N  = NV_LOCLENGTH_P(x);
+  sum = ZERO;
+  xd = wd = idd = NULL;
+
+  N        = NV_LOCLENGTH_P(x);
   N_global = NV_GLOBLENGTH_P(x);
-  xd = NV_DATA_P(x);
-  wd = NV_DATA_P(w);
-  idd = NV_DATA_P(id);
+  xd       = NV_DATA_P(x);
+  wd       = NV_DATA_P(w);
+  idd      = NV_DATA_P(id);
   comm = NV_COMM_P(x);
 
-  for (i=0; i < N; i++) {
+  for (i = 0; i < N; i++) {
     if (idd[i] > ZERO) {
-      prodi = xd[i] * wd[i];
-      sum += prodi * prodi;
+      prodi = xd[i]*wd[i];
+      sum += SQR(prodi);
     }
   }
 
   gsum = VAllReduce_Parallel(sum, 1, comm);
-  return(RSqrt(gsum / N_global));
+
+  return(RSqrt(gsum/N_global));
 }
 
 realtype N_VMin_Parallel(N_Vector x)
@@ -687,6 +747,8 @@ realtype N_VMin_Parallel(N_Vector x)
   long int i, N;
   realtype min, *xd, gmin;
   MPI_Comm comm;
+
+  xd = NULL;
 
   N  = NV_LOCLENGTH_P(x);
   comm = NV_COMM_P(x);
@@ -696,54 +758,62 @@ realtype N_VMin_Parallel(N_Vector x)
   if (N > 0) {
 
     xd = NV_DATA_P(x);
-    
+
     min = xd[0];
-    
-    xd++;
-    for (i=1; i < N; i++, xd++) {
-      if ((*xd) < min) min = *xd;
+
+    for (i = 1; i < N; i++) {
+      if (xd[i] < min) min = xd[i];
     }
 
   }
-    
+
   gmin = VAllReduce_Parallel(min, 3, comm);
+
   return(gmin);
 }
 
 realtype N_VWL2Norm_Parallel(N_Vector x, N_Vector w)
 {
   long int i, N;
-  realtype sum = ZERO, prodi, *xd, *wd, gsum;
+  realtype sum, prodi, *xd, *wd, gsum;
   MPI_Comm comm;
+
+  sum = ZERO;
+  xd = wd = NULL;
 
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   wd = NV_DATA_P(w);
   comm = NV_COMM_P(x);
 
-  for (i=0; i < N; i++) {
-    prodi = (*xd++) * (*wd++);
-    sum += prodi * prodi;
+  for (i = 0; i < N; i++) {
+    prodi = xd[i]*wd[i];
+    sum += SQR(prodi);
   }
 
   gsum = VAllReduce_Parallel(sum, 1, comm);
+
   return(RSqrt(gsum));
 }
 
 realtype N_VL1Norm_Parallel(N_Vector x)
 {
   long int i, N;
-  realtype sum = ZERO, gsum, *xd;
+  realtype sum, gsum, *xd;
   MPI_Comm comm;
+
+  sum = ZERO;
+  xd = NULL;
 
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   comm = NV_COMM_P(x);
 
-  for (i=0; i<N; i++,xd++) 
-    sum += ABS(*xd);
+  for (i = 0; i<N; i++) 
+    sum += ABS(xd[i]);
 
   gsum = VAllReduce_Parallel(sum, 1, comm);
+
   return(gsum);
 }
 
@@ -751,14 +821,18 @@ void N_VCompare_Parallel(realtype c, N_Vector x, N_Vector z)
 {
   long int i, N;
   realtype *xd, *zd;
-  
+
+  xd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++, xd++, zd++) {
-    *zd = (ABS(*xd) >= c) ? ONE : ZERO;
+  for (i = 0; i < N; i++) {
+    zd[i] = (ABS(xd[i]) >= c) ? ONE : ZERO;
   }
+
+  return;
 }
 
 booleantype N_VInvTest_Parallel(N_Vector x, N_Vector z)
@@ -767,20 +841,23 @@ booleantype N_VInvTest_Parallel(N_Vector x, N_Vector z)
   realtype *xd, *zd, val, gval;
   MPI_Comm comm;
 
+  xd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   zd = NV_DATA_P(z);
   comm = NV_COMM_P(x);
 
   val = ONE;
-  for (i=0; i < N; i++) {
-    if (*xd == ZERO) 
+  for (i = 0; i < N; i++) {
+    if (xd[i] == ZERO) 
       val = ZERO;
     else
-      *zd++ = ONE / (*xd++);
+      zd[i] = ONE/xd[i];
   }
 
   gval = VAllReduce_Parallel(val, 3, comm);
+
   if (gval == ZERO)
     return(FALSE);
   else
@@ -790,31 +867,36 @@ booleantype N_VInvTest_Parallel(N_Vector x, N_Vector z)
 booleantype N_VConstrMask_Parallel(N_Vector c, N_Vector x, N_Vector m)
 {
   long int i, N;
-  booleantype test;
+  realtype temp;
   realtype *cd, *xd, *md;
   MPI_Comm comm;
- 
+
+  cd = xd = md = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   cd = NV_DATA_P(c);
   md = NV_DATA_P(m);
   comm = NV_COMM_P(x);
 
-  test = TRUE;
+  temp = ONE;
 
-  for (i=0; i<N; i++, cd++, xd++, md++) {
-    *md = ZERO;
-    if (*cd == ZERO) continue;
-    if (*cd > ONEPT5 || (*cd) < -ONEPT5) {
-      if ( (*xd)*(*cd) <= ZERO) {test = FALSE; *md = ONE; }
+  for (i = 0; i < N; i++) {
+    md[i] = ZERO;
+    if (cd[i] == ZERO) continue;
+    if (cd[i] > ONEPT5 || cd[i] < -ONEPT5) {
+      if (xd[i]*cd[i] <= ZERO) { temp = ZERO; md[i] = ONE; }
       continue;
     }
-    if ( (*cd) > HALF || (*cd) < -HALF) {
-      if ( (*xd)*(*cd) < ZERO ) {test = FALSE; *md = ONE; }
+    if (cd[i] > HALF || cd[i] < -HALF) {
+      if (xd[i]*cd[i] < ZERO ) { temp = ZERO; md[i] = ONE; }
     }
   }
 
-  return((booleantype)VAllReduce_Parallel((realtype)test, 3, comm));
+  temp = VAllReduce_Parallel(temp, 3, comm);
+
+  if (temp == ONE) return(TRUE);
+  else return(FALSE);
 }
 
 realtype N_VMinQuotient_Parallel(N_Vector num, N_Vector denom)
@@ -834,12 +916,12 @@ realtype N_VMinQuotient_Parallel(N_Vector num, N_Vector denom)
   notEvenOnce = TRUE;
   min = BIG_REAL;
 
-  for (i = 0; i < N; i++, nd++, dd++) {
-    if (*dd == ZERO) continue;
+  for (i = 0; i < N; i++) {
+    if (dd[i] == ZERO) continue;
     else {
-      if (!notEvenOnce) min = MIN(min, (*nd) / (*dd));
+      if (!notEvenOnce) min = MIN(min, nd[i]/dd[i]);
       else {
-        min = (*nd) / (*dd);
+        min = nd[i]/dd[i];
         notEvenOnce = FALSE;
       }
     }
@@ -887,12 +969,16 @@ static void VCopy_Parallel(N_Vector x, N_Vector z)
   long int i, N;
   realtype *xd, *zd;
 
+  xd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = *xd++; 
+  for (i = 0; i < N; i++)
+    zd[i] = xd[i]; 
+
+  return;
 }
 
 static void VSum_Parallel(N_Vector x, N_Vector y, N_Vector z)
@@ -900,27 +986,35 @@ static void VSum_Parallel(N_Vector x, N_Vector y, N_Vector z)
   long int i, N;
   realtype *xd, *yd, *zd;
 
+  xd = yd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = (*xd++) + (*yd++);
+  for (i = 0; i < N; i++)
+    zd[i] = xd[i]+yd[i];
+
+  return;
 }
 
 static void VDiff_Parallel(N_Vector x, N_Vector y, N_Vector z)
 {
   long int i, N;
   realtype *xd, *yd, *zd;
- 
+
+  xd = yd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = (*xd++) - (*yd++);
+  for (i = 0; i < N; i++)
+    zd[i] = xd[i]-yd[i];
+
+  return;
 }
 
 static void VNeg_Parallel(N_Vector x, N_Vector z)
@@ -928,12 +1022,16 @@ static void VNeg_Parallel(N_Vector x, N_Vector z)
   long int i, N;
   realtype *xd, *zd;
 
+  xd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = -(*xd++);
+  for (i = 0; i < N; i++)
+    zd[i] = -xd[i];
+
+  return;
 }
 
 static void VScaleSum_Parallel(realtype c, N_Vector x, N_Vector y, N_Vector z)
@@ -941,13 +1039,17 @@ static void VScaleSum_Parallel(realtype c, N_Vector x, N_Vector y, N_Vector z)
   long int i, N;
   realtype *xd, *yd, *zd;
 
+  xd = yd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = c * ((*xd++) + (*yd++));
+  for (i = 0; i < N; i++)
+    zd[i] = c*(xd[i]+yd[i]);
+
+  return;
 }
 
 static void VScaleDiff_Parallel(realtype c, N_Vector x, N_Vector y, N_Vector z)
@@ -955,13 +1057,17 @@ static void VScaleDiff_Parallel(realtype c, N_Vector x, N_Vector y, N_Vector z)
   long int i, N;
   realtype *xd, *yd, *zd;
 
+  xd = yd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = c * ((*xd++) - (*yd++));
+  for (i = 0; i < N; i++)
+    zd[i] = c*(xd[i]-yd[i]);
+
+  return;
 }
 
 static void VLin1_Parallel(realtype a, N_Vector x, N_Vector y, N_Vector z)
@@ -969,13 +1075,17 @@ static void VLin1_Parallel(realtype a, N_Vector x, N_Vector y, N_Vector z)
   long int i, N;
   realtype *xd, *yd, *zd;
 
+  xd = yd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = a * (*xd++) + (*yd++);
+  for (i = 0; i < N; i++)
+    zd[i] = (a*xd[i])+yd[i];
+
+  return;
 }
 
 static void VLin2_Parallel(realtype a, N_Vector x, N_Vector y, N_Vector z)
@@ -983,13 +1093,17 @@ static void VLin2_Parallel(realtype a, N_Vector x, N_Vector y, N_Vector z)
   long int i, N;
   realtype *xd, *yd, *zd;
 
+  xd = yd = zd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
   zd = NV_DATA_P(z);
 
-  for (i=0; i < N; i++)
-    *zd++ = a * (*xd++) - (*yd++);
+  for (i = 0; i < N; i++)
+    zd[i] = (a*xd[i])-yd[i];
+
+  return;
 }
 
 static void Vaxpy_Parallel(realtype a, N_Vector x, N_Vector y)
@@ -997,24 +1111,28 @@ static void Vaxpy_Parallel(realtype a, N_Vector x, N_Vector y)
   long int i, N;
   realtype *xd, *yd;
 
+  xd = yd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
   yd = NV_DATA_P(y);
 
   if (a == ONE) {
-    for (i=0; i < N; i++)
-      *yd++ += (*xd++);
+    for (i = 0; i < N; i++)
+      yd[i] += xd[i];
     return;
   }
   
   if (a == -ONE) {
-    for (i=0; i < N; i++)
-      *yd++ -= (*xd++);
+    for (i = 0; i < N; i++)
+      yd[i] -= xd[i];
     return;
   }    
   
-  for (i=0; i < N; i++)
-    *yd++ += a * (*xd++);
+  for (i = 0; i < N; i++)
+    yd[i] += a*xd[i];
+
+  return;
 }
 
 static void VScaleBy_Parallel(realtype a, N_Vector x)
@@ -1022,9 +1140,13 @@ static void VScaleBy_Parallel(realtype a, N_Vector x)
   long int i, N;
   realtype *xd;
 
+  xd = NULL;
+
   N  = NV_LOCLENGTH_P(x);
   xd = NV_DATA_P(x);
 
-  for (i=0; i < N; i++)
-    *xd++ *= a;
+  for (i = 0; i < N; i++)
+    xd[i] *= a;
+
+  return;
 }

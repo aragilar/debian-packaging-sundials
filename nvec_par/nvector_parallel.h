@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.15.2.2 $
- * $Date: 2005/04/28 21:36:08 $
+ * $Revision: 1.24 $
+ * $Date: 2006/01/11 21:14:01 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Scott D. Cohen, Alan C. Hindmarsh, Radu Serban,
  *                and Aaron Collier @ LLNL
@@ -53,10 +53,9 @@
 extern "C" {
 #endif
 
-#include <mpi.h>
+#include "sundials_nvector.h"
 
-#include "nvector.h"
-#include "sundialstypes.h"
+#include "mpi.h"
 
 /*
  * -----------------------------------------------------------------
@@ -84,7 +83,7 @@ extern "C" {
 
 /* parallel implementation of the N_Vector 'content' structure
    contains the global and local lengths of the vector, a pointer
-   to an array of realtype components, the MPI communicator,
+   to an array of 'realtype components', the MPI communicator,
    and a flag indicating ownership of the data */
 
 struct _N_VectorContent_Parallel {
@@ -182,14 +181,14 @@ typedef struct _N_VectorContent_Parallel *N_VectorContent_Parallel;
  * CONSTRUCTORS:
  *    N_VNew_Parallel
  *    N_VNewEmpty_Parallel
- *    N_VClone_Parallel
- *    N_VCloneEmpty_Parallel
  *    N_VMake_Parallel
- *    N_VNewVectorArray_Parallel
- *    N_VNewVectorArrayEmpty_Parallel
+ *    N_VCloneVectorArray_Parallel
+ *    N_VCloneVectorArrayEmpty_Parallel
  * DESTRUCTORS:
  *    N_VDestroy_Parallel
  *    N_VDestroyVectorArray_Parallel
+ * OTHER:
+ *    N_VPrint_Parallel
  * -----------------------------------------------------------------
  */
 
@@ -234,39 +233,32 @@ N_Vector N_VMake_Parallel(MPI_Comm comm,
 
 /*
  * -----------------------------------------------------------------
- * Function : N_VNewVectorArray_Parallel
+ * Function : N_VCloneVectorArray_Parallel
  * -----------------------------------------------------------------
- * This function creates an array of 'count' parallel vectors. This
- * array of N_Vectors can be freed using N_VDestroyVectorArray
- * (defined by the generic NVECTOR module).
+ * This function creates an array of 'count' PARALLEL vectors by
+ * cloning a given vector w.
  * -----------------------------------------------------------------
  */
 
-N_Vector *N_VNewVectorArray_Parallel(int count, 
-                                     MPI_Comm comm, 
-                                     long int local_length,
-                                     long int global_length);
+N_Vector *N_VCloneVectorArray_Parallel(int count, N_Vector w);
 
 /*
  * -----------------------------------------------------------------
- * Function : N_VNewVectorArrayEmpty_Parallel
+ * Function : N_VCloneVectorArrayEmpty_Parallel
  * -----------------------------------------------------------------
- * This function creates an array of 'count' parallel vectors each 
- * with an empty (NULL) data array.
+ * This function creates an array of 'count' PARALLEL vectors each 
+ * with an empty (NULL) data array by cloning w.
  * -----------------------------------------------------------------
  */
 
-N_Vector *N_VNewVectorArrayEmpty_Parallel(int count, 
-                                          MPI_Comm comm, 
-                                          long int local_length,
-                                          long int global_length);
+N_Vector *N_VCloneVectorArrayEmpty_Parallel(int count, N_Vector w);
 
 /*
  * -----------------------------------------------------------------
  * Function : N_VDestroyVectorArray_Parallel
  * -----------------------------------------------------------------
  * This function frees an array of N_Vector created with 
- * N_VNewVectorArray_Parallel.
+ * N_VCloneVectorArray_Parallel or N_VCloneVectorArrayEmpty_Parallel.
  * -----------------------------------------------------------------
  */
 

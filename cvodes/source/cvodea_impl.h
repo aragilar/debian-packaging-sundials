@@ -1,11 +1,11 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.3.2.5 $
- * $Date: 2005/04/28 23:31:33 $
+ * $Revision: 1.19 $
+ * $Date: 2006/02/06 23:17:43 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Radu Serban and Aaron Collier @ LLNL
  * -----------------------------------------------------------------
- * Copyright (c) 2002, The Regents of the University of California.
+ * Copyright (c) 2005, The Regents of the University of California.
  * Produced at the Lawrence Livermore National Laboratory.
  * All rights reserved.
  * For details, see sundials/cvodes/LICENSE.
@@ -25,14 +25,9 @@ extern "C" {
 
 #include "cvodea.h"
 #include "cvodes_impl.h"
-#include "cvdense_impl.h"
-#include "cvband_impl.h"
-#include "cvspgmr_impl.h"
-#include "cvbandpre_impl.h"
-#include "cvbbdpre_impl.h"
 
-#include "nvector.h"
-#include "sundialstypes.h"
+#include "sundials_nvector.h"
+#include "sundials_types.h"
 
   /*
    * -----------------------------------------------------------------
@@ -41,6 +36,7 @@ extern "C" {
    */
 
   typedef struct CVadjMemRec *CVadjMem;
+  typedef struct CkpntMemRec *CkpntMem;
   typedef struct DtpntMemRec *DtpntMem;
 
   /*
@@ -67,7 +63,7 @@ extern "C" {
    * -----------------------------------------------------------------
    */
 
-  typedef struct CkpntMemRec {
+  struct CkpntMemRec {
 
     /* Integration limits */
     realtype ck_t0;
@@ -110,7 +106,7 @@ extern "C" {
     /* Pointer to next structure in list */
     struct CkpntMemRec *ck_next;
     
-  } *CkpntMem;
+  };
   
   /*
    * -----------------------------------------------------------------
@@ -133,6 +129,12 @@ extern "C" {
     N_Vector yd;
   } *HermiteDataMem;
 
+  /* Data for polynomial interpolation */
+  typedef struct PolynomialDataMemRec {
+    N_Vector y;
+    int order;
+  } *PolynomialDataMem;
+
   /*
    * -----------------------------------------------------------------
    * Type : struct CVadjMemRec
@@ -142,7 +144,7 @@ extern "C" {
    * necessary for adjoint sensitivity analysis.
    * -----------------------------------------------------------------
    */
-  
+
   struct CVadjMemRec {
     
     /* CVODE memory for forward runs */
@@ -169,41 +171,21 @@ extern "C" {
     
     /* Right hand side quadrature function (fQB) for backward run */
     CVQuadRhsFnB ca_fQB;
-    
-    /* Dense Jacobian function (djacB) for backward run */
-    CVDenseJacFnB ca_djacB;
-    
-    /* Banded Jacobian function (bjacB) for backward run */
-    CVBandJacFnB ca_bjacB;
-    
-    /* Jac times vec routine (jtimesB) for backward run */
-    CVSpgmrJacTimesVecFnB ca_jtimesB;
-    
-    /* Preconditioner routines (precondB and psolveB) for backward run */
-    CVSpgmrPrecSetupFnB ca_psetB;
-    CVSpgmrPrecSolveFnB ca_psolveB;
-    
-    /* BBD user functions (glocB and cfnB) for backward run */
-    CVLocalFnB ca_glocB;
-    CVCommFnB  ca_cfnB;
-    
+
     /* User f_dataB */
     void *ca_f_dataB;
     
     /* User fQ_dataB */
     void *ca_fQ_dataB;
     
-    /* User jac_dataB */
-    void *ca_jac_dataB;
-    
-    /* User P_dataB */
-    void *ca_P_dataB;
-    
-    /* BP prec data */
-    void *ca_bp_dataB;
-    
-    /* BBD prec data */
-    void *ca_bbd_dataB;
+    /* Memory block for a linear solver's interface to CVODEA */
+    void *ca_lmemB;
+
+    /* Function to free any memory allocated by the linear solver */
+    void (*ca_lfreeB)(CVadjMem ca_mem);
+
+    /* Memory block for a preconditioner's module interface to CVODEA */ 
+    void *ca_pmemB;
     
     /* Unit roundoff */
     realtype ca_uround;
@@ -230,19 +212,30 @@ extern "C" {
     /* Commonly, np = nsteps+1                              */
     long int ca_np;
     
-    /* Temporary space used by the Hermite interpolation */
-    realtype ca_delta;
-    N_Vector ca_Y0, ca_Y1;
+    /* Workspace used by the Hermite interpolation */
+    N_Vector ca_Y0, ca_Y1;    /* pointers to zn[0] and zn[1] */
+
+    /* Workspace for polynomial interpolation */
+    N_Vector ca_Y[L_MAX];     /* pointers to zn[i] */
+    realtype ca_T[L_MAX];
+
+    /* Workspace for wrapper functions */
     N_Vector ca_ytmp;
     
   };
   
   /* Error Messages */
   
-#define _CVAM_          "CVadjMalloc-- "
-#define MSGAM_NO_MEM    _CVAM_ "cvode_mem = NULL illegal.\n\n"
-#define MSGAM_BAD_STEPS _CVAM_ "Steps nonpositive illegal.\n\n"
-#define MSGAM_MEM_FAIL  _CVAM_ "A memory request failed.\n\n"
+#define MSGAM_NULL_CVMEM   "cvode_mem = NULL illegal."
+#define MSGAM_NULL_CAMEM   "cvadj_mem = NULL illegal."
+#define MSGAM_BAD_STEPS    "Steps nonpositive illegal."
+#define MSGAM_MEM_FAIL     "A memory request failed."
+#define MSGAM_BAD_INTERP   "Illegal value for interp."
+#define MSGAM_BAD_ITASKB   "Illegal value for itaskB. Legal values are CV_NORMAL and CV_ONE_STEP."
+#define MSGAM_BAD_TB0      "The initial time tB0 is outside the interval over which the forward problem was solved."
+#define MSGAM_BAD_TBOUT    "The final time tBout is outside the interval over which the forward problem was solved."
+#define MSGAM_BAD_T        "Bad t for interpolation."
+#define MSGAM_WRONG_INTERP "This function cannot be called for the specified interp type."
 
 #ifdef __cplusplus
 }

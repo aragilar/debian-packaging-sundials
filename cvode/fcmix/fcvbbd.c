@@ -1,9 +1,10 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.18.2.1 $
- * $Date: 2005/03/18 21:33:19 $
+ * $Revision: 1.30 $
+ * $Date: 2006/02/10 00:03:09 $
  * ----------------------------------------------------------------- 
- * Programmer(s): Alan C. Hindmarsh and Radu Serban @ LLNL
+ * Programmer(s): Alan C. Hindmarsh, Radu Serban and
+ *                Aaron Collier @ LLNL
  * -----------------------------------------------------------------
  * Copyright (c) 2002, The Regents of the University of California.
  * Produced at the Lawrence Livermore National Laboratory.
@@ -20,14 +21,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "cvbbdpre.h"      /* prototypes of CVBBDPRE functions and macros */
-#include "cvode.h"         /* CVODE constants and prototypes              */
-#include "cvspgmr.h"       /* prototypes of CVSPGMR interface routines    */
-#include "fcvbbd.h"        /* prototypes of interfaces to CVBBDPRE        */
-#include "fcvode.h"        /* actual function names, prototypes and
-			      global variables                            */
-#include "nvector.h"       /* definition of type N_Vector                 */
-#include "sundialstypes.h" /* definition of type realtype                 */
+#include "fcvode.h"           /* actual function names, prototypes, global vars.*/
+#include "fcvbbd.h"           /* prototypes of interfaces to CVBBDPRE           */
+
+#include "cvode.h"            /* CVODE constants and prototypes                 */
+#include "cvode_bbdpre.h"     /* prototypes of CVBBDPRE functions and macros    */
+
+#include "cvode_sptfqmr.h"    /* prototypes of CVSPTFQMR interface routines     */
+#include "cvode_spbcgs.h"     /* prototypes of CVSPBCG interface routines       */
+#include "cvode_spgmr.h"      /* prototypes of CVSPGMR interface routines       */
+
+#include "sundials_nvector.h" /* definition of type N_Vector                    */
+#include "sundials_types.h"   /* definition of type realtype                    */
 
 /***************************************************************************/
 
@@ -36,8 +41,17 @@
 #ifdef __cplusplus  /* wrapper to enable C++ usage */
 extern "C" {
 #endif
-  extern void FCV_GLOCFN(long int*, realtype*, realtype*, realtype*);
-  extern void FCV_COMMFN(long int*, realtype*, realtype*);
+
+  extern void FCV_GLOCFN(long int*,                        /* NLOC          */
+                         realtype*, realtype*, realtype*,  /* T, YLOC, GLOC */
+                         long int*, realtype*,             /* IPAR, RPAR    */
+                         int *ier);                        /* IER           */
+
+  extern void FCV_COMMFN(long int*,                        /* NLOC          */
+                         realtype*, realtype*,             /* T, Y          */
+                         long int*, realtype*,             /* IPAR, RPAR    */
+                         int *ier);                        /* IER           */
+
 #ifdef __cplusplus
 }
 #endif
@@ -68,6 +82,46 @@ void FCV_BBDINIT(long int *Nloc, long int *mudq, long int *mldq,
 
 /***************************************************************************/
 
+void FCV_BBDSPTFQMR(int *pretype, int *maxl, realtype *delt, int *ier)
+{
+  /* 
+     Call CVBBDSptfqmr to specify the SPTFQMR linear solver:
+     pretype    is the preconditioner type
+     maxl       is the maximum Krylov dimension
+     delt       is the linear convergence tolerance factor 
+  */
+
+  *ier = CVBBDSptfqmr(CV_cvodemem, *pretype, *maxl, CVBBD_Data);
+  if (*ier != CVSPILS_SUCCESS) return;
+
+  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  if (*ier != CVSPILS_SUCCESS) return;
+
+  CV_ls = CV_LS_SPTFQMR;
+}
+
+/***************************************************************************/
+
+void FCV_BBDSPBCG(int *pretype, int *maxl, realtype *delt, int *ier)
+{
+  /* 
+     Call CVBBDSpbcg to specify the SPBCG linear solver:
+     pretype    is the preconditioner type
+     maxl       is the maximum Krylov dimension
+     delt       is the linear convergence tolerance factor 
+  */
+
+  *ier = CVBBDSpbcg(CV_cvodemem, *pretype, *maxl, CVBBD_Data);
+  if (*ier != CVSPILS_SUCCESS) return;
+
+  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  if (*ier != CVSPILS_SUCCESS) return;
+
+  CV_ls = CV_LS_SPBCG;
+}
+
+/***************************************************************************/
+
 void FCV_BBDSPGMR(int *pretype, int *gstype, int *maxl, realtype *delt, int *ier)
 {
   /* 
@@ -79,15 +133,15 @@ void FCV_BBDSPGMR(int *pretype, int *gstype, int *maxl, realtype *delt, int *ier
   */
 
   *ier = CVBBDSpgmr(CV_cvodemem, *pretype, *maxl, CVBBD_Data);
-  if (*ier != CVSPGMR_SUCCESS) return;
+  if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpgmrSetGSType(CV_cvodemem, *gstype);
-  if (*ier != CVSPGMR_SUCCESS) return;
+  *ier = CVSpilsSetGSType(CV_cvodemem, *gstype);
+  if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpgmrSetDelt(CV_cvodemem, *delt);
-  if (*ier != CVSPGMR_SUCCESS) return;
+  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  if (*ier != CVSPILS_SUCCESS) return;
 
-  CV_ls = 4;
+  CV_ls = CV_LS_SPGMR;
 }
 
 /***************************************************************************/
@@ -104,8 +158,7 @@ void FCV_BBDREINIT(long int *Nloc, long int *mudq, long int *mldq,
      FCVcfn      is a pointer to the CVCommFn function 
   */
 
-  *ier = CVBBDPrecReInit(CVBBD_Data, *mudq, *mldq,
-                         *dqrely, FCVgloc, FCVcfn);
+  *ier = CVBBDPrecReInit(CVBBD_Data, *mudq, *mldq, *dqrely, FCVgloc, FCVcfn);
 }
 
 /***************************************************************************/
@@ -113,15 +166,22 @@ void FCV_BBDREINIT(long int *Nloc, long int *mudq, long int *mldq,
 /* C function FCVgloc to interface between CVBBDPRE module and a Fortran 
    subroutine FCVLOCFN. */
 
-void FCVgloc(long int Nloc, realtype t, N_Vector yloc, N_Vector gloc,
-             void *f_data)
+int FCVgloc(long int Nloc, realtype t, N_Vector yloc, N_Vector gloc,
+            void *f_data)
 {
+  int ier;
   realtype *yloc_data, *gloc_data;
-  
+  FCVUserData CV_userdata;
+
   yloc_data = N_VGetArrayPointer(yloc);
   gloc_data = N_VGetArrayPointer(gloc);
 
-  FCV_GLOCFN(&Nloc, &t, yloc_data, gloc_data);
+  CV_userdata = (FCVUserData) f_data;
+
+  FCV_GLOCFN(&Nloc, &t, yloc_data, gloc_data, 
+             CV_userdata->ipar, CV_userdata->rpar,
+             &ier);
+  return(ier);
 }
 
 /***************************************************************************/
@@ -129,25 +189,29 @@ void FCVgloc(long int Nloc, realtype t, N_Vector yloc, N_Vector gloc,
 /* C function FCVcfn to interface between CVBBDPRE module and a Fortran 
    subroutine FCVCOMMF. */
 
-
-void FCVcfn(long int Nloc, realtype t, N_Vector y, void *f_data)
+int FCVcfn(long int Nloc, realtype t, N_Vector y, void *f_data)
 {
+  int ier;
   realtype *yloc;
+  FCVUserData CV_userdata;
 
   yloc = N_VGetArrayPointer(y);
 
-  FCV_COMMFN(&Nloc, &t, yloc);
+  CV_userdata = (FCVUserData) f_data;
 
+  FCV_COMMFN(&Nloc, &t, yloc, CV_userdata->ipar, CV_userdata->rpar, &ier);
+
+  return(ier);
 }
 
 /***************************************************************************/
 
 /* C function FCVBBDOPT to access optional outputs from CVBBD_Data */
 
-void FCV_BBDOPT(long int *lenrpw, long int *lenipw, long int *nge)
+void FCV_BBDOPT(long int *lenrwbbd, long int *leniwbbd, long int *ngebbd)
 {
-  CVBBDPrecGetWorkSpace(CVBBD_Data, lenrpw, lenipw);
-  CVBBDPrecGetNumGfnEvals(CVBBD_Data, nge);
+  CVBBDPrecGetWorkSpace(CVBBD_Data, lenrwbbd, leniwbbd);
+  CVBBDPrecGetNumGfnEvals(CVBBD_Data, ngebbd);
 }
 
 
@@ -158,5 +222,5 @@ void FCV_BBDOPT(long int *lenrpw, long int *lenipw, long int *nge)
 
 void FCV_BBDFREE(void)
 {
-  CVBBDPrecFree(CVBBD_Data);
+  CVBBDPrecFree(&CVBBD_Data);
 }
