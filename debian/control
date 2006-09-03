@@ -3,7 +3,7 @@ Priority: optional
 Maintainer: Debian Octave Group <pkg-octave-devel@lists.alioth.debian.org>
 Uploaders: Rafael Laboissiere <rafael@debian.org>
 Build-Depends: debhelper (>= 4.0.0), autotools-dev, cdbs
-Standards-Version: 3.7.0
+Standards-Version: 3.7.2
 Section: libs
 
 Package: libsundials-serial0

@@ -1,1 +1,1 @@
-libsundials-serial0: package-name-doesnt-match-sonames libsundials-ida0 libsundials-kinsol0 libsundials-cvode0 libsundials-cvodes0
+libsundials-serial0: package-name-doesnt-match-sonames libsundials-ida0 libsundials-kinsol0 libsundials-nvecserial0 libsundials-cvode0 libsundials-cvodes0

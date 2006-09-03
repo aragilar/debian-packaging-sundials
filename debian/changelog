@@ -1,3 +1,18 @@
+sundials (2.2.0-2) unstable; urgency=low
+
+  * debian/rules:
+    - Create directories $(DEB_DESTDIR)/usr/{lib,include} before
+      installing the package.  This should be done by the upstream
+      Makefiles (but it is not) and was preventing the libsundials_nvec
+      library and associated include files from being shipped in the
+      package (closes: #385630).
+    - Also reported in Bug#385630 was the fact that the libdir lines in
+      the *.la files were wrong.  again, this is an upstream defect,
+      because there is no way to prevent the -rpath option from being
+      used.  This problem is fixed in this version.
+
+ -- Rafael Laboissiere <rafael@debian.org>  Sun,  3 Sep 2006 14:31:59 +0200
+
 sundials (2.2.0-1) unstable; urgency=low
 
   [ Andrey Romanenko ]
@@ -13,6 +28,7 @@ sundials (2.2.0-1) unstable; urgency=low
   * Switched to cdbs
   * Since upstream is using soversion numbers for the libraries, the
     package is renamed from libsundials-serial to libsundials-serial0
+  * debian/control: Bumped Standards-Version to 3.7.2 (no changes needed)
 
  -- Rafael Laboissiere <rafael@debian.org>  Mon,  8 May 2006 12:32:29 +0200
 

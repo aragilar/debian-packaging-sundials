@@ -10,9 +10,17 @@ debusr := $(DEB_DESTDIR)usr
 DEB_CONFIGURE_EXTRA_FLAGS := --enable-shared --disable-mpi --disable-examples
 DEB_MAKE_INSTALL_TARGET := install prefix=$(debusr)
 
-install/libsundials-serial0::
+# The following hack is necessary because the upstream makefiles do
+# not install $libdir and $includedir
+common-install-prehook-impl::
 	mkdir -p $(debusr)/lib
-	mv $(debusr)/lib*.* $(debusr)/lib
+	mkdir -p $(debusr)/include	
+
+# The followiung hack is necessary because there is no way to prevent
+# the -rpath otpion being used during make install
+install/libsundials-serial0::
+	perl -pi -e "s:libdir='.*':libdir='/usr/lib':;" \
+		`find debian/ -name \*.la`
 
 clean::
 	rm -rf `find . -name .libs -o -name \*.o` libtool
