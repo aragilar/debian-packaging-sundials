@@ -1,3 +1,9 @@
+sundials (2.2.0-3) unstable; urgency=low
+
+  * debian/control: Changed maintainer to the pkg-scicomp team at Alioth
+
+ -- Rafael Laboissiere <rafael@debian.org>  Sat, 16 Sep 2006 13:11:09 +0200
+
 sundials (2.2.0-2) unstable; urgency=low
 
   * debian/rules:

@@ -1,6 +1,6 @@
 Source: sundials
 Priority: optional
-Maintainer: Debian Octave Group <pkg-octave-devel@lists.alioth.debian.org>
+Maintainer: Debian Scientific Computing Team <pkg-scicomp-devel@lists.alioth.debian.org>
 Uploaders: Rafael Laboissiere <rafael@debian.org>
 Build-Depends: debhelper (>= 4.0.0), autotools-dev, cdbs
 Standards-Version: 3.7.2
@@ -18,7 +18,7 @@ Description: SUit of Nonlinear and DIfferential/ALgebraic equation Solvers
  .
  This package contains shared libraries.
  .
- Homepage: http://www.llnl.gov/CASC/sundials/
+  Homepage: http://www.llnl.gov/CASC/sundials/
 
 Package: libsundials-serial-dev
 Section: libdevel
@@ -35,7 +35,7 @@ Description: SUNDIALS development files
  This package contains files necessary for development applications using
  SUNDIALS in C and, in case of FCVODE and FKINSOL, Fortran.
  .
- Homepage: http://www.llnl.gov/CASC/sundials/
+  Homepage: http://www.llnl.gov/CASC/sundials/
 
 Package: libsundials-serial-doc
 Section: doc
@@ -50,4 +50,4 @@ Description: SUNDIALS documentation files
  .
  This package contains SUNDIALS documentation.
  .
- Homepage: http://www.llnl.gov/CASC/sundials/
+  Homepage: http://www.llnl.gov/CASC/sundials/
