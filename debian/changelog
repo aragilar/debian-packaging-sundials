@@ -1,3 +1,62 @@
+sundials (2.3.0-1) unstable; urgency=low
+
+  [ Andrey Romanenko ]
+  * New upstream release
+  * Added sundials-config man page
+
+  [ Rafael Laboissiere ]
+  * Switch from CDBS' simple-patchsys to quilt
+  * Split the libsundials-serial package into individual library packages
+  * debian/clean: Add file for removing config.log (Lintian warning) and the
+    .libs/* files, which are not cleaned by make clean but should
+  * debian/compat: Bump debhelper compatibility to v7
+  * debian/control:
+    + Build-depends on debhelper >= 7, such that debian/clean is taken
+      into account
+    + Added Homepage, Vcs-Svn, and Vcs-Browser fields to the Source
+      section
+    + Dropped the Homepage pseudo-header from the extended descriptions
+    + Bumped Standards-Version to 3.8.0
+    + Switch from ${Source-Version} substvar to ${binary:Version}
+    + Fix Lintian warnings debhelper-but-no-misc-depends
+    + Drop duplicated Section fields in the Package stanzas
+  * debian/sundials-config.1: Drop .NH macro
+  * debian/watch: Add file for uscan
+  * debian/orig-tarball.sh: Add script for use by uscan.  This is necessary
+    because of the javascript URL investigated in debian/watch.
+  * debian/{libsundials-cvode0,libsundials-cvodes1,libsundials-ida1,
+    libsundials-kinsol0,libsundials-nvecserial0}.symbols : Add shared
+    library symbols files
+  * debian/check.sh: Add script for exercising the serial checks
+  * debian/rules:
+    + (build/libsundials-serial): Call debian/check.sh
+    + (binary-install/libsundials-serial-dev): Install
+      the *.c, *.f, *.out, and READMe files from the examples/ directory.
+  * debian/control: Mention the presence of the examples in the
+    description of the libsundials-serial-dev package
+  * debian/patches/modern-ltmain.sh.patch: Add header and make Lintian happy
+  * debian/source.lintian-overrides: Override the ancient-libtool warning
+
+  [ Daniel Leidert ]
+  * debian/control (Depends): Added gfortran to build FORTRAN examples.
+  * debian/libsundials-cvode0.install: Removed DEB_DESTDIR from path.
+  * debian/libsundials-cvodes1.install: Ditto.
+  * debian/libsundials-ida1.install: Ditto.
+  * debian/libsundials-kinsol0.install: Ditto.
+  * debian/libsundials-nvecserial0.install: Ditto.
+  * debian/libsundials-serial-dev.install: Ditto. Further removed manpage
+    installation (done with dh_installman).
+  * debian/sundials-config.1: Minor format changes.
+  * debian/rules: Added get-orig-source target to retieve source code via
+    wget, which works atm. Set gfortran as FORTRAN compiler. Install
+    everything from DEB_DESTDIR.
+    (DEB_CONFIGURE_EXTRA_FLAGS): Removed --enable-fortran, which is not a
+    valid option.
+    (install/libsundials-serial-dev): Removed target. Better done with
+    DEB_INSTALL_MANPAGES.
+
+ -- Rafael Laboissiere <rafael@debian.org>  Wed, 11 Feb 2009 17:58:22 +0100
+
 sundials (2.2.0-3) unstable; urgency=low
 
   * debian/control: Changed maintainer to the pkg-scicomp team at Alioth

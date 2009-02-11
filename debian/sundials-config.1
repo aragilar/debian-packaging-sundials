@@ -1,0 +1,57 @@
+.TH "sundials\-config" 1 "2006-07-25" "" "SUNDIALS"
+.SH NAME
+sundials-config \- returns required flags for linking to SUNDIALS libraries
+.SH SYNOPSIS
+.HP
+.B sundials\-config 
+.BI "\-m {" cvode | cvodes | ida | kinsol }
+.BI "\-t {" s | p }
+.BI "\-l {" c | f }
+.BI "[-s {" libs | cppflags }]
+.B [\-hv]
+.SH DESCRIPTION
+.B sundials\-config
+provides a way to obtain various configuration options for compiling programs
+that use SUNDIALS
+.SH OPTIONS
+.TP
+.BI "\-m {" cvode | cvodes | ida | kinsol }
+Select the SUNDIALS module
+.TP
+.BI "\-t {" s | p }
+Use serial of parallel vectors
+.TP
+.BI "\-l {" c | f }
+Use C or Fortran
+.TP
+.BI "-s {" libs | cppflags }
+Show linking flags or C preprocessor flags
+(show both of no option is given)
+.TP
+.B \-h
+Get usage and options information
+.TP
+.B \-v
+View the script
+.SH NOTES
+.TP
+.B \-lf
+is not valid for
+.B \-m cvodes
+.TP
+.B \-s cppflags
+returns an empty string for
+.B \-l f
+.SH AUTHOR
+\fBRadu Serban\fR <\&radu@llnl.gov\&>
+.P
+This manual page was written by Andrey Romanenko for
+the Debian system (but may be used by others).  Permission
+is granted to copy, distribute and/or modify this document under
+the terms of the &gnu; General Public License, Version 2 any
+later version published by the Free Software Foundation.
+.P
+On Debian systems, the complete text of the GNU General Public
+License can be found in \fI/usr/share/common-licenses/GPL\fR.
+.SH "SEE ALSO"
+SUNDIALS Documentation

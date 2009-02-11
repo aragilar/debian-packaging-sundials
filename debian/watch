@@ -1,0 +1,4 @@
+version=3
+opts="filenamemangle=s/.*//" \
+	http://computation.llnl.gov/casc/sundials/download/download.html \
+	.*'sundials-([\d.]+)'.* debian /bin/sh debian/orig-tarball.sh

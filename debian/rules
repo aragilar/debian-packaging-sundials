@@ -3,24 +3,39 @@
 
 include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/class/autotools.mk
-include /usr/share/cdbs/1/rules/simple-patchsys.mk
+include /usr/share/cdbs/1/rules/patchsys-quilt.mk
 
 debusr := $(DEB_DESTDIR)usr
 
-DEB_CONFIGURE_EXTRA_FLAGS := --enable-shared --disable-mpi --disable-examples
+DEB_CONFIGURE_EXTRA_FLAGS := --enable-shared --disable-mpi --enable-examples
+DEB_CONFIGURE_SCRIPT_ENV += F77="gfortran"
 DEB_MAKE_INSTALL_TARGET := install prefix=$(debusr)
 
+DEB_INSTALL_MANPAGES_libsundials-serial-dev := debian/sundials-config.1
+DEB_INSTALL_EXAMPLES_libsundials-serial-dev := examples/*
+DEB_DH_INSTALL_SOURCEDIR = $(DEB_DESTDIR)
+
+DEB_COMPRESS_EXCLUDE = .c .out .f
+
 # The following hack is necessary because the upstream makefiles do
-# not install $libdir and $includedir
+# not install $libdir and $includedir or $mandir
 common-install-prehook-impl::
 	mkdir -p $(debusr)/lib
-	mkdir -p $(debusr)/include	
+	mkdir -p $(debusr)/include
+	mkdir -p $(debusr)/share/man/man1
 
-# The followiung hack is necessary because there is no way to prevent
-# the -rpath otpion being used during make install
-install/libsundials-serial0::
-	perl -pi -e "s:libdir='.*':libdir='/usr/lib':;" \
-		`find debian/ -name \*.la`
+get-orig-source:
+	wget -O $(DEB_SOURCE_PACKAGE)_$(DEB_UPSTREAM_VERSION).orig.tar.gz \
+	     https://computation.llnl.gov/casc/sundials/download/code/$(DEB_SOURCE_PACKAGE)-$(DEB_UPSTREAM_VERSION).tar.gz
 
-clean::
-	rm -rf `find . -name .libs -o -name \*.o` libtool
+build/libsundials-serial::
+	$(SHELL) debian/check.sh
+
+debexp = debian/libsundials-serial-dev/usr/share/doc/libsundials-serial-dev/examples
+
+binary-install/libsundials-serial-dev::
+	find $(debexp) -name .libs -exec rm -rf {} +
+	find $(debexp) \
+	        -type f -a ! \( -name README -o -name \*.out		\
+				   -o -name \*.f -o -name \*.c \)	\
+		-a -exec rm -f \{\} \;
