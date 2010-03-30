@@ -3,9 +3,7 @@ sundials (2.3.0-2) unstable; urgency=low
   * Package moved to debian-science
   * Raphael removed and add myself in the Uploaders list (Closes: #571898)
   * Missing replace/conflicts added (Closes: #540498)
-  * No longer install *.la files
-  * bashim removed (Closes: #530983)
-  * Standards-Version updated to version 3.8.4
+  * 
 
  -- Sylvestre Ledru <sylvestre@debian.org>  Tue, 30 Mar 2010 22:54:48 +0200
 
