@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:37 $
+ * $Revision: 1.3 $
+ * $Date: 2007/04/30 19:29:01 $
  * -----------------------------------------------------------------
  * Programmer(s): Allan Taylor, Alan Hindmarsh and
  *                Radu Serban @ LLNL
@@ -47,8 +47,8 @@ extern void FK_JTIMES(realtype*, realtype*, int*, realtype*, int*);
 
 void FKIN_SPILSSETJAC(int *flag, int *ier)
 {
-  if ((*flag) == 0) KINSpilsSetJacTimesVecFn(KIN_kinmem, NULL, NULL);
-  else              KINSpilsSetJacTimesVecFn(KIN_kinmem, FKINJtimes, NULL);
+  if ((*flag) == 0) KINSpilsSetJacTimesVecFn(KIN_kinmem, NULL);
+  else              KINSpilsSetJacTimesVecFn(KIN_kinmem, FKINJtimes);
 
   return;
 }
@@ -65,7 +65,7 @@ void FKIN_SPILSSETJAC(int *flag, int *ier)
 
 int FKINJtimes(N_Vector v, N_Vector Jv,
                N_Vector uu, booleantype *new_uu, 
-               void *J_data)
+               void *user_data)
 {
   int retcode;
   realtype *vdata, *Jvdata, *uudata;

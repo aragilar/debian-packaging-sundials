@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:33 $
+ * $Revision: 1.8 $
+ * $Date: 2008/09/10 22:39:03 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Scott D. Cohen, Alan C. Hindmarsh and
  *                Radu Serban @ LLNL
@@ -45,23 +45,22 @@ static void CVSpgmrFree(CVodeMem cv_mem);
 
 /* Readability Replacements */
 
-#define uround  (cv_mem->cv_uround)
-#define tq      (cv_mem->cv_tq)
-#define nst     (cv_mem->cv_nst)
-#define tn      (cv_mem->cv_tn)
-#define h       (cv_mem->cv_h)
-#define gamma   (cv_mem->cv_gamma)
-#define gammap  (cv_mem->cv_gammap)   
-#define f       (cv_mem->cv_f)
-#define f_data  (cv_mem->cv_f_data)
-#define ewt     (cv_mem->cv_ewt)
-#define mnewt   (cv_mem->cv_mnewt)
-#define ropt    (cv_mem->cv_ropt)
-#define linit   (cv_mem->cv_linit)
-#define lsetup  (cv_mem->cv_lsetup)
-#define lsolve  (cv_mem->cv_lsolve)
-#define lfree   (cv_mem->cv_lfree)
-#define lmem    (cv_mem->cv_lmem)
+#define tq           (cv_mem->cv_tq)
+#define nst          (cv_mem->cv_nst)
+#define tn           (cv_mem->cv_tn)
+#define h            (cv_mem->cv_h)
+#define gamma        (cv_mem->cv_gamma)
+#define gammap       (cv_mem->cv_gammap)   
+#define f            (cv_mem->cv_f)
+#define user_data    (cv_mem->cv_user_data)
+#define ewt          (cv_mem->cv_ewt)
+#define mnewt        (cv_mem->cv_mnewt)
+#define ropt         (cv_mem->cv_ropt)
+#define linit        (cv_mem->cv_linit)
+#define lsetup       (cv_mem->cv_lsetup)
+#define lsolve       (cv_mem->cv_lsolve)
+#define lfree        (cv_mem->cv_lfree)
+#define lmem         (cv_mem->cv_lmem)
 #define vec_tmpl     (cv_mem->cv_tempv)
 #define setupNonNull (cv_mem->cv_setupNonNull)
 
@@ -78,8 +77,13 @@ static void CVSpgmrFree(CVodeMem cv_mem);
 #define ncfl    (cvspils_mem->s_ncfl)
 #define nstlpre (cvspils_mem->s_nstlpre)
 #define njtimes (cvspils_mem->s_njtimes)
-#define nfes   (cvspils_mem->s_nfes)
+#define nfes    (cvspils_mem->s_nfes)
 #define spils_mem (cvspils_mem->s_spils_mem)
+
+#define jtimesDQ (cvspils_mem->s_jtimesDQ)
+#define jtimes  (cvspils_mem->s_jtimes)
+#define j_data  (cvspils_mem->s_j_data)
+
 #define last_flag (cvspils_mem->s_last_flag)
 
 /*
@@ -94,19 +98,7 @@ static void CVSpgmrFree(CVodeMem cv_mem);
  * respectively.  It allocates memory for a structure of type
  * CVSpilsMemRec and sets the cv_lmem field in (*cvode_mem) to the
  * address of this structure.  It sets setupNonNull in (*cvode_mem),
- * and sets the following fields in the CVSpilsMemRec structure:
- *   s_pretype = pretype                                       
- *   s_gstype  = gstype                                       
- *   s_maxl    = MIN(N,CVSPILS_MAXL  if maxl <= 0             
- *             = maxl                 if maxl > 0              
- *   s_delt    = CVSPILS_DELT if delt == 0.0                     
- *             = delt         if delt != 0.0                     
- *   s_P_data  = P_data                                        
- *   s_pset    = pset                                       
- *   s_psolve  = psolve                                        
- *   s_jtimes  = input parameter jtimes  if jtimes != NULL
- *             = CVSpilsDQJtimes         otherwise
- *   s_j_data  = input parameter jac_data
+ * and sets various fields in the CVSpilsMemRec structure.
  * Finally, CVSpgmr allocates memory for ytemp and x, and calls
  * SpgmrMalloc to allocate memory for the Spgmr solver.
  * -----------------------------------------------------------------
@@ -142,7 +134,7 @@ int CVSpgmr(void *cvode_mem, int pretype, int maxl)
 
   /* Get memory for CVSpilsMemRec */
   cvspils_mem = NULL;
-  cvspils_mem = (CVSpilsMem) malloc(sizeof(CVSpilsMemRec));
+  cvspils_mem = (CVSpilsMem) malloc(sizeof(struct CVSpilsMemRec));
   if (cvspils_mem == NULL) {
     CVProcessError(cv_mem, CVSPILS_MEM_FAIL, "CVSPGMR", "CVSpgmr", MSGS_MEM_FAIL);
     return(CVSPILS_MEM_FAIL);
@@ -155,16 +147,22 @@ int CVSpgmr(void *cvode_mem, int pretype, int maxl)
   cvspils_mem->s_pretype    = pretype;
   mxl = cvspils_mem->s_maxl = (maxl <= 0) ? CVSPILS_MAXL : maxl;
 
-  /* Set default values for the rest of the Spgmr parameters */
-  cvspils_mem->s_gstype     = MODIFIED_GS;
-  cvspils_mem->s_delt       = CVSPILS_DELT;
-  cvspils_mem->s_P_data     = NULL;
-  cvspils_mem->s_pset       = NULL;
-  cvspils_mem->s_psolve     = NULL;
-  cvspils_mem->s_jtimes     = CVSpilsDQJtimes;
-  cvspils_mem->s_j_data     = cvode_mem;
-  cvspils_mem->s_last_flag  = CVSPILS_SUCCESS;
+  /* Set defaults for Jacobian-related fileds */
+  jtimesDQ = TRUE;
+  jtimes   = NULL;
+  j_data   = NULL;
 
+  /* Set defaults for preconditioner-related fields */
+  cvspils_mem->s_pset   = NULL;
+  cvspils_mem->s_psolve = NULL;
+  cvspils_mem->s_pfree  = NULL;
+  cvspils_mem->s_P_data = cv_mem->cv_user_data;
+
+  /* Set default values for the rest of the Spgmr parameters */
+  cvspils_mem->s_gstype = MODIFIED_GS;
+  cvspils_mem->s_eplifac = CVSPILS_EPLIN;
+
+  cvspils_mem->s_last_flag  = CVSPILS_SUCCESS;
 
   setupNonNull = FALSE;
 
@@ -176,14 +174,14 @@ int CVSpgmr(void *cvode_mem, int pretype, int maxl)
   }
 
   /* Allocate memory for ytemp and x */
-  ytemp = NULL;
+
   ytemp = N_VClone(vec_tmpl);
   if (ytemp == NULL) {
     CVProcessError(cv_mem, CVSPILS_MEM_FAIL, "CVSPGMR", "CVSpgmr", MSGS_MEM_FAIL);
     free(cvspils_mem); cvspils_mem = NULL;
     return(CVSPILS_MEM_FAIL);
   }
-  x = NULL;
+
   x = N_VClone(vec_tmpl);
   if (x == NULL) {
     CVProcessError(cv_mem, CVSPILS_MEM_FAIL, "CVSPGMR", "CVSpgmr", MSGS_MEM_FAIL);
@@ -221,13 +219,11 @@ int CVSpgmr(void *cvode_mem, int pretype, int maxl)
 
 #define pretype (cvspils_mem->s_pretype)
 #define gstype  (cvspils_mem->s_gstype)
-#define delt    (cvspils_mem->s_delt)
+#define eplifac (cvspils_mem->s_eplifac)
 #define maxl    (cvspils_mem->s_maxl)
 #define psolve  (cvspils_mem->s_psolve)
 #define pset    (cvspils_mem->s_pset)
 #define P_data  (cvspils_mem->s_P_data)
-#define jtimes  (cvspils_mem->s_jtimes)
-#define j_data  (cvspils_mem->s_j_data)
 
 /*
  * -----------------------------------------------------------------
@@ -258,10 +254,12 @@ static int CVSpgmrInit(CVodeMem cv_mem)
      and there is a preconditioning setup phase (pset != NULL)             */
   setupNonNull = (pretype != PREC_NONE) && (pset != NULL);
 
-  /* If jtimes is NULL at this time, set it to DQ */
-  if (jtimes == NULL) {
+  /* Set Jacobian-related fields, based on jtimesDQ */
+  if (jtimesDQ) {
     jtimes = CVSpilsDQJtimes;
     j_data = cv_mem;
+  } else {
+    j_data = user_data;
   }
 
   last_flag = CVSPILS_SUCCESS;
@@ -360,7 +358,7 @@ static int CVSpgmrSolve(CVodeMem cv_mem, N_Vector b, N_Vector weight,
   spgmr_mem = (SpgmrMem) spils_mem;
 
   /* Test norm(b); if small, return x = 0 or x = b */
-  deltar = delt*tq[4]; 
+  deltar = eplifac * tq[4]; 
 
   bnorm = N_VWrmsNorm(b, weight);
   if (bnorm <= deltar) {
@@ -450,11 +448,14 @@ static void CVSpgmrFree(CVodeMem cv_mem)
 
   cvspils_mem = (CVSpilsMem) lmem;
   
-  spgmr_mem = (SpgmrMem) spils_mem;
-
   N_VDestroy(ytemp);
   N_VDestroy(x);
+
+  spgmr_mem = (SpgmrMem) spils_mem;
   SpgmrFree(spgmr_mem);
+
+  if (cvspils_mem->s_pfree != NULL) (cvspils_mem->s_pfree)(cv_mem);
+
   free(cvspils_mem); cvspils_mem = NULL;
 }
 

@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:35 $
+ * $Revision: 1.6 $
+ * $Date: 2007/11/26 16:20:00 $
  * ----------------------------------------------------------------- 
  * Programmers: Alan C. Hindmarsh, and Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -55,7 +55,7 @@ static int IDASpgmrFree(IDAMem IDA_mem);
 #define cj           (IDA_mem->ida_cj)
 #define epsNewt      (IDA_mem->ida_epsNewt)
 #define res          (IDA_mem->ida_res)
-#define rdata        (IDA_mem->ida_rdata)
+#define user_data    (IDA_mem->ida_user_data)
 #define ewt          (IDA_mem->ida_ewt)
 #define errfp        (IDA_mem->ida_errfp)
 #define linit        (IDA_mem->ida_linit)
@@ -90,6 +90,11 @@ static int IDASpgmrFree(IDAMem IDA_mem);
 #define njtimes   (idaspils_mem->s_njtimes)
 #define nres      (idaspils_mem->s_nres)
 #define spils_mem (idaspils_mem->s_spils_mem)
+
+#define jtimesDQ  (idaspils_mem->s_jtimesDQ)
+#define jtimes    (idaspils_mem->s_jtimes)
+#define jdata     (idaspils_mem->s_jdata)
+
 #define last_flag (idaspils_mem->s_last_flag)
 
 /*
@@ -106,21 +111,10 @@ static int IDASpgmrFree(IDAMem IDA_mem);
  * IDASpgmrSolve, IDASpgmrPerf, and IDASpgmrFree, respectively.
  * It allocates memory for a structure of type IDASpilsMemRec and sets
  * the ida_lmem field in (*IDA_mem) to the address of this structure.
- * It sets setupNonNull in (*IDA_mem).  It then sets the following
- * fields in the IDASpilsMemRec structure:
- *   s_gstype   = gstype
- *   s_maxl     = MIN(Neq,IDA_SPILS_MAXL) if maxl <= 0,  else MIN(Neq,maxl)
- *   s_maxrs    = 0 if maxrs < 0,  MIN(5,Neq/s_maxl) if maxrs = 0, and
- *                MIN(maxrs,Neq/s_maxl) if maxrs > 0.
- *   s_eplifac  = 0.05 if eplifac = 0.0,  else eplifac
- *   s_dqincfac = 1.0 if dqincfac = 0.0,  else dqincfac
- *   s_pdata    = NULL
- *   s_pset     = NULL
- *   s_psolve   = NULL
- *   s_jtimes   = NULL
- *   s_jdata    = NULL
- * Finally, IDASpgmr allocates memory for ytemp, yptemp, and xx, and
- * calls SpgmrMalloc to allocate memory for the Spgmr solver.
+ * It sets setupNonNull in (*IDA_mem).  It then various fields in the
+ * IDASpilsMemRec structure. Finally, IDASpgmr allocates memory for 
+ * ytemp, yptemp, and xx, and calls SpgmrMalloc to allocate memory
+ * for the Spgmr solver.
  *
  * The return value of IDASpgmr is:
  *   IDASPILS_SUCCESS       = 0  if successful
@@ -161,7 +155,7 @@ int IDASpgmr(void *ida_mem, int maxl)
 
   /* Get memory for IDASpilsMemRec */
   idaspils_mem = NULL;
-  idaspils_mem = (IDASpilsMem) malloc(sizeof(IDASpilsMemRec));
+  idaspils_mem = (IDASpilsMem) malloc(sizeof(struct IDASpilsMemRec));
   if (idaspils_mem == NULL) {
     IDAProcessError(NULL, IDASPILS_MEM_FAIL, "IDASPGMR", "IDASpgmr", MSGS_MEM_FAIL);
     return(IDASPILS_MEM_FAIL);
@@ -174,23 +168,30 @@ int IDASpgmr(void *ida_mem, int maxl)
   maxl1 = (maxl <= 0) ? IDA_SPILS_MAXL : maxl;
   idaspils_mem->s_maxl     = maxl1;
 
+  /* Set defaults for Jacobian-related fileds */
+  jtimesDQ = TRUE;
+  jtimes   = NULL;
+  jdata    = NULL;
+
+  /* Set defaults for preconditioner-related fields */
+  idaspils_mem->s_pset   = NULL;
+  idaspils_mem->s_psolve = NULL;
+  idaspils_mem->s_pfree  = NULL;
+  idaspils_mem->s_pdata  = IDA_mem->ida_user_data;
+
   /* Set default values for the rest of the Spgmr parameters */
   idaspils_mem->s_gstype   = MODIFIED_GS;
   idaspils_mem->s_maxrs    = IDA_SPILS_MAXRS;
   idaspils_mem->s_eplifac  = PT05;
   idaspils_mem->s_dqincfac = ONE;
-  idaspils_mem->s_pset     = NULL;
-  idaspils_mem->s_psolve   = NULL;
-  idaspils_mem->s_pdata    = NULL;
-  idaspils_mem->s_jtimes   = IDASpilsDQJtimes;
-  idaspils_mem->s_jdata    = ida_mem;
+
   idaspils_mem->s_last_flag  = IDASPILS_SUCCESS;
 
   /* Set setupNonNull to FALSE */
   setupNonNull = FALSE;
 
   /* Allocate memory for ytemp, yptemp, and xx */
-  ytemp = NULL;
+
   ytemp = N_VClone(vec_tmpl);
   if (ytemp == NULL) {
     IDAProcessError(NULL, IDASPILS_MEM_FAIL, "IDASPGMR", "IDASpgmr", MSGS_MEM_FAIL);
@@ -198,7 +199,6 @@ int IDASpgmr(void *ida_mem, int maxl)
     return(IDASPILS_MEM_FAIL);
   }
 
-  yptemp = NULL;
   yptemp = N_VClone(vec_tmpl);
   if (yptemp == NULL) {
     IDAProcessError(NULL, IDASPILS_MEM_FAIL, "IDASPGMR", "IDASpgmr", MSGS_MEM_FAIL);
@@ -207,7 +207,6 @@ int IDASpgmr(void *ida_mem, int maxl)
     return(IDASPILS_MEM_FAIL);
   }
 
-  xx = NULL;
   xx = N_VClone(vec_tmpl);
   if (xx == NULL) {
     IDAProcessError(NULL, IDASPILS_MEM_FAIL, "IDASPGMR", "IDASpgmr", MSGS_MEM_FAIL);
@@ -257,8 +256,6 @@ int IDASpgmr(void *ida_mem, int maxl)
 #define psolve   (idaspils_mem->s_psolve)
 #define pset     (idaspils_mem->s_pset)
 #define pdata    (idaspils_mem->s_pdata)
-#define jtimes   (idaspils_mem->s_jtimes)
-#define jdata    (idaspils_mem->s_jdata)
 
 static int IDASpgmrInit(IDAMem IDA_mem)
 {
@@ -273,10 +270,12 @@ static int IDASpgmrInit(IDAMem IDA_mem)
   /* Set setupNonNull to TRUE iff there is preconditioning with setup */
   setupNonNull = (psolve != NULL) && (pset != NULL);
 
-  /* If jtimes is NULL at this time, set it to DQ */
-  if (jtimes == NULL) {
+  /* Set Jacobian-related fields, based on jtimesDQ */
+  if (jtimesDQ) {
     jtimes = IDASpilsDQJtimes;
     jdata = IDA_mem;
+  } else {
+    jdata = user_data;
   }
 
   last_flag = IDASPILS_SUCCESS;
@@ -461,12 +460,15 @@ static int IDASpgmrFree(IDAMem IDA_mem)
 
   idaspils_mem = (IDASpilsMem) lmem;
   
-  spgmr_mem = (SpgmrMem) spils_mem;
-
   N_VDestroy(ytemp);
   N_VDestroy(xx);
+
+  spgmr_mem = (SpgmrMem) spils_mem;
   SpgmrFree(spgmr_mem);
-  free(lmem); lmem = NULL;
+
+  if (idaspils_mem->s_pfree != NULL) (idaspils_mem->s_pfree)(IDA_mem);
+
+  free(idaspils_mem); idaspils_mem = NULL;
 
   return(0);
 }

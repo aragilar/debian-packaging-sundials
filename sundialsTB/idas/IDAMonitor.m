@@ -1,4 +1,4 @@
-function [new_data] = IDAMonitor(call, T, YY, YP, YQ, YYS, YPS, data)
+function [new_data] = IDAMonitor(call, T, Y, YQ, YS, data)
 %IDAMonitor is the default IDAS monitoring function.
 %   To use it, set the Monitor property in IDASetOptions to
 %   'IDAMonitor' or to @IDAMonitor and 'MonitorData' to mondata
@@ -17,13 +17,10 @@ function [new_data] = IDAMonitor(call, T, YY, YP, YQ, YYS, YPS, data)
 %         If true, report the evolution of the step size and method order.
 %     o cntr [ {true} | false ]
 %         If true, report the evolution of the following counters:
-%         nst, nre, nni, netf, ncfn (see IDAGetStats)
+%         nst, nfe, nni, netf, ncfn (see IDAGetStats)
 %     o mode [ {'graphical'} | 'text' | 'both' ] 
 %         In graphical mode, plot the evolutions of the above quantities.
 %         In text mode, print a table.
-%     o xaxis [ 'linear' | {'log'} ]
-%         Type of the time axis for the stepsize, order, and counter plots 
-%         (graphical mode only).
 %     o sol  [ true | {false} ]
 %         If true, plot solution components.
 %     o sensi [ true | {false} ]
@@ -35,8 +32,6 @@ function [new_data] = IDAMonitor(call, T, YY, YP, YQ, YYS, YPS, data)
 %         Update frequency. Data is posted in blocks of dimension n.
 %     o skip [ integer | {0} ]
 %         Number of integrations steps to skip in collecting data to post.
-%     o dir [ {1} | -1 ]
-%         Specifies forward or backward integration.
 %     o post [ {true} | false ]
 %         If false, disable all posting. This option is necessary to disable
 %         monitoring on some processors when running in parallel.
@@ -46,12 +41,15 @@ function [new_data] = IDAMonitor(call, T, YY, YP, YQ, YYS, YPS, data)
 %   NOTES:
 %     1. The argument mondata is REQUIRED. Even if only the default options
 %        are desired, set mondata=struct; and pass it to IDASetOptions.
-%     2. The arguments YP, YQ, and YPS are currently ignored.     
+%     2. The yQ argument is currently ignored.     
 
 % Radu Serban <radu@llnl.gov>
-% Copyright (c) 2005, The Regents of the University of California.
-% $Revision: 1.1 $Date: 2006/07/17 16:49:50 $
+% Copyright (c) 2007, The Regents of the University of California.
+% $Revision: 1.4 $Date: 2009/04/22 04:25:06 $
 
+if (nargin ~= 6) 
+  error('Monitor data not defined.');
+end
 
 new_data = [];
 
@@ -98,7 +96,7 @@ if call == 0
   end
   if data.cntr
     data.nst = zeros(1,data.updt);
-    data.nre = zeros(1,data.updt);
+    data.nfe = zeros(1,data.updt);
     data.nni = zeros(1,data.updt);
     data.netf = zeros(1,data.updt);
     data.ncfn = zeros(1,data.updt);
@@ -114,11 +112,11 @@ if call == 0
 else
 
 % If this is the first call ~= 0, 
-% use YY and YYS for additional initializations
+% use Y and YS for additional initializations
   
   if data.first
 
-    if isempty(YYS)
+    if isempty(YS)
       data.sensi = false;
     end
     
@@ -126,7 +124,7 @@ else
       
       if isempty(data.select)
       
-        data.N = length(YY);
+        data.N = length(Y);
         data.select = [1:data.N];
         
       else
@@ -141,7 +139,7 @@ else
       end
         
       if data.sensi
-        data.Ns = size(YYS,2);
+        data.Ns = size(YS,2);
         data.ys = zeros(data.N, data.Ns, data.updt);
         data.nps = data.nps + data.Ns;
       end
@@ -169,7 +167,7 @@ else
   h    = data.h;
   q    = data.q;
   nst  = data.nst;
-  nre  = data.nre;
+  nfe  = data.nfe;
   nni  = data.nni;
   netf = data.netf;
   ncfn = data.ncfn;
@@ -188,11 +186,7 @@ if call == 1
     return;
   end
 
-  if data.dir == 1
-    si = IDAGetStats;
-  else
-    si = IDAGetStatsB;
-  end
+  si = IDAGetStats;
 
   t(n) = si.tcur;
   
@@ -203,7 +197,7 @@ if call == 1
   
   if data.cntr
     nst(n) = si.nst;
-    nre(n) = si.nre;
+    nfe(n) = si.nfe;
     nni(n) = si.nni;
     netf(n) = si.netf;
     ncfn(n) = si.ncfn;
@@ -211,14 +205,14 @@ if call == 1
 
   if data.sol
     for j = 1:N
-      y(j,n) = YY(data.select(j));
+      y(j,n) = Y(data.select(j));
     end
   end
 
   if data.sensi
     for k = 1:Ns
       for j = 1:N
-        ys(j,k,n) = YYS(data.select(j),k);
+        ys(j,k,n) = YS(data.select(j),k);
       end
     end
   end
@@ -236,17 +230,17 @@ if data.post & (n == data.updt | call==2)
   if ~data.initialized
 
     if (data.stats | data.cntr) & data.grph
-      graphical_init(n, hfg, npg, data.stats, data.cntr, data.dir, ...
-                     t, h, q, nst, nre, nni, netf, ncfn, data.xaxis);
+      graphical_init(n, hfg, npg, data.stats, data.cntr, ...
+                     t, h, q, nst, nfe, nni, netf, ncfn);
     end
     
     if (data.stats | data.cntr) & data.text
       text_init(n, hft, data.stats, data.cntr, ...
-                t, h, q, nst, nre, nni, netf, ncfn);
+                t, h, q, nst, nfe, nni, netf, ncfn);
     end
 
     if data.sol | data.sensi
-      sol_init(n, hfs, nps, data.sol, data.sensi, data.dir, data.xaxis, ...
+      sol_init(n, hfs, nps, data.sol, data.sensi,  ...
                N, Ns, t, y, ys);
     end
     
@@ -256,12 +250,12 @@ if data.post & (n == data.updt | call==2)
 
     if (data.stats | data.cntr) & data.grph
       graphical_update(n, hfg, npg, data.stats, data.cntr, ...
-                       t, h, q, nst, nre, nni, netf, ncfn);
+                       t, h, q, nst, nfe, nni, netf, ncfn);
     end
 
     if (data.stats | data.cntr) & data.text
       text_update(n, hft, data.stats, data.cntr, ...
-                  t, h, q, nst, nre, nni, netf, ncfn);
+                  t, h, q, nst, nfe, nni, netf, ncfn);
     end
     
     if data.sol
@@ -304,7 +298,7 @@ data.ys   = ys;
 data.h    = h;
 data.q    = q;
 data.nst  = nst;
-data.nre  = nre;
+data.nfe  = nfe;
 data.nni  = nni;
 data.netf = netf;
 data.ncfn = ncfn;
@@ -341,12 +335,6 @@ end
 if ~isfield(data,'select')
   data.select = [];
 end
-if ~isfield(data,'xaxis')
-  data.xaxis = 'log';
-end
-if ~isfield(data,'dir')
-  data.dir = 1;
-end
 if ~isfield(data,'post')
   data.post = true;
 end
@@ -373,7 +361,7 @@ data.hfs = 0;
 data.h = 0;
 data.q = 0;
 data.nst = 0;
-data.nre = 0;
+data.nfe = 0;
 data.nni = 0;
 data.netf = 0;
 data.ncfn = 0;
@@ -384,8 +372,8 @@ data.ys = 0;
 
 %-------------------------------------------------------------------------
 
-function [] = graphical_init(n, hfg, npg, stats, cntr, dir, ...
-                             t, h, q, nst, nre, nni, netf, ncfn, xaxis)
+function [] = graphical_init(n, hfg, npg, stats, cntr, ...
+                             t, h, q, nst, nfe, nni, netf, ncfn)
 
 fig_name = 'IDAS run statistics';
 
@@ -405,20 +393,13 @@ pl = 0;
 
 % Time label and figure title
 
-if dir==1
-  tlab = '\rightarrow   t   \rightarrow';
-else
-  tlab = '\leftarrow   t   \leftarrow';
-end
+tlab = '\rightarrow   t   \rightarrow';
 
 % Step size and order
 if stats
   pl = pl+1;
   subplot(npg,1,pl)
   semilogy(t(1:n),abs(h(1:n)),'-');
-  if strcmp(xaxis,'log')
-    set(gca,'XScale','log');
-  end
   hold on;
   box on;
   grid on;
@@ -428,9 +409,6 @@ if stats
   pl = pl+1;
   subplot(npg,1,pl)
   plot(t(1:n),q(1:n),'-');
-  if strcmp(xaxis,'log')
-    set(gca,'XScale','log');
-  end
   hold on;
   box on;
   grid on;
@@ -444,13 +422,10 @@ if cntr
   subplot(npg,1,pl)
   plot(t(1:n),nst(1:n),'k-');
   hold on;
-  plot(t(1:n),nre(1:n),'b-');
+  plot(t(1:n),nfe(1:n),'b-');
   plot(t(1:n),nni(1:n),'r-');
   plot(t(1:n),netf(1:n),'g-');
   plot(t(1:n),ncfn(1:n),'c-');
-  if strcmp(xaxis,'log')
-    set(gca,'XScale','log');
-  end
   box on;
   grid on;
   xlabel(tlab);
@@ -462,7 +437,7 @@ drawnow;
 %-------------------------------------------------------------------------
 
 function [] = graphical_update(n, hfg, npg, stats, cntr, ...
-                               t, h, q, nst, nre, nni, netf, ncfn)
+                               t, h, q, nst, nfe, nni, netf, ncfn)
 
 figure(hfg);
 pl = 0;
@@ -497,7 +472,7 @@ if cntr
   set(hc(2), 'XData', xd, 'YData', yd);
   yd = [get(hc(3),'YData') nni(1:n)];
   set(hc(3), 'XData', xd, 'YData', yd);
-  yd = [get(hc(4),'YData') nre(1:n)];
+  yd = [get(hc(4),'YData') nfe(1:n)];
   set(hc(4), 'XData', xd, 'YData', yd);
   yd = [get(hc(5),'YData') nst(1:n)];
   set(hc(5), 'XData', xd, 'YData', yd);
@@ -534,12 +509,12 @@ if cntr
   hc = get(gca,'Children');
   xd = get(hc(1),'XData');
   set(gca,'XLim',sort([xd(1) xd(end)]));
-  legend('nst','nre','nni','netf','ncfn',2);
+  legend('nst','nfe','nni','netf','ncfn',2);
 end
 
 %-------------------------------------------------------------------------
 
-function [] = text_init(n,hft,stats,cntr,t,h,q,nst,nre,nni,netf,ncfn)
+function [] = text_init(n,hft,stats,cntr,t,h,q,nst,nfe,nni,netf,ncfn)
 
 fig_name = 'IDAS run statistics';
 
@@ -578,7 +553,7 @@ ht=uicontrol(hft,'style','text','position',tpos,'tag','text');
 set(ht,'BackgroundColor',[1 1 1]);
 set(ht,'HorizontalAlignment','left');
 set(ht,'FontName','courier');
-newline = '   time         step      order  |    nst   nre   nni  netf  ncfn';
+newline = '   time         step      order  |    nst   nfe   nni  netf  ncfn';
 set(ht,'String',newline);
 
 % Create OK button
@@ -605,7 +580,7 @@ for i = 1:n
   end
   if cntr
     newline = sprintf('%s %5d %5d %5d %5d %5d',...
-                      newline,nst(i),nre(i),nni(i),netf(i),ncfn(i));
+                      newline,nst(i),nfe(i),nni(i),netf(i),ncfn(i));
   end
   string = get(handles.textbox,'String');
   string{end+1}=newline;
@@ -616,7 +591,7 @@ drawnow
 
 %-------------------------------------------------------------------------
 
-function [] = text_update(n,hft,stats,cntr,t,h,q,nst,nre,nni,netf,ncfn)
+function [] = text_update(n,hft,stats,cntr,t,h,q,nst,nfe,nni,netf,ncfn)
 
 figure(hft);
 
@@ -628,7 +603,7 @@ for i = 1:n
   end
   if cntr
     newline = sprintf('%s %5d %5d %5d %5d %5d',...
-                      newline,nst(i),nre(i),nni(i),netf(i),ncfn(i));
+                      newline,nst(i),nfe(i),nni(i),netf(i),ncfn(i));
   end
   string = get(handles.textbox,'String');
   string{end+1}=newline;
@@ -639,7 +614,7 @@ drawnow
 
 %-------------------------------------------------------------------------
 
-function [] = sol_init(n, hfs, nps, sol, sensi, dir, xaxis, N, Ns, t, y, ys)
+function [] = sol_init(n, hfs, nps, sol, sensi, N, Ns, t, y, ys)
 
 fig_name = 'IDAS solution';
 
@@ -659,11 +634,7 @@ set(hfs,'color',[1 1 1]);
 
 % Time label
 
-if dir==1
-  tlab = '\rightarrow   t   \rightarrow';
-else
-  tlab = '\leftarrow   t   \leftarrow';
-end
+tlab = '\rightarrow   t   \rightarrow';
 
 % Get number of colors in colormap
 map = colormap;
@@ -682,9 +653,6 @@ if sol
     hp = plot(t(1:n),y(i,1:n),'-');
     ic = 1+(i-1)*floor(ncols/N);
     set(hp,'Color',map(ic,:));
-  end
-  if strcmp(xaxis,'log')
-    set(gca,'XScale','log');
   end
   box on;
   grid on;
@@ -707,9 +675,6 @@ if sensi
       hp = plot(t(1:n),ys_crt(i,1:n),'-');
       ic = 1+(i-1)*floor(ncols/N);
       set(hp,'Color',map(ic,:));
-    end
-    if strcmp(xaxis,'log')
-      set(gca,'XScale','log');
     end
     box on;
     grid on;

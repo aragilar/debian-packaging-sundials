@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
-# $Revision: 1.46 $
-# $Date: 2006/10/19 21:21:11 $
+# $Revision: 1.57 $
+# $Date: 2009/03/25 18:32:37 $
 # -----------------------------------------------------------------
 # Programmer(s): Radu Serban and Aaron Collier @ LLNL
 # -----------------------------------------------------------------
@@ -9,8 +9,55 @@
 # All rights reserved.
 # For details, see the LICENSE file.
 # -----------------------------------------------------------------
+#
 # SUNDIALS autoconf macros
+#
+# The functions defined here fall into the following categories:
+#
+# (1) Initializations:
+#     SUNDIALS_GREETING
+#     SUNDIALS_INITIALIZE
+#     SUNDIALS_ENABLES
+#
+# (2) C compiler tests
+#     SUNDIALS_SET_CC
+#     SUNDIALS_CC_CHECK
+#     SUNDIALS_CPLUSPLUS_CHECK
+#
+# (3) Fortran support
+#     SUNDIALS_F77_SUPPORT
+#     SUNDIALS_F77_CHECK
+#     SUNDIALS_F77_LNKR_CHECK
+#     SUNDIALS_F77_NAME_MANGLING
+#     SUNDIALS_F77_LAPACK_SET
+#
+# (4) Parallel support
+#     SUNDIALS_SET_MPICC
+#     SUNDIALS_CHECK_MPICC
+#     SUNDIALS_CC_WITH_MPI_CHECK
+#     SUNDIALS_SET_MPIF77
+#     SUNDIALS_CHECK_MPIF77
+#     SUNDIALS_MPIF77_LNKR_CHECK
+#     SUNDIALS_F77_WITH_MPI_CHECK
+#     SUNDIALS_CHECK_MPI2
+#
+# (5) Finalizations:
+#     SUNDIALS_MORE_HELP
+#     SUNDIALS_SET_EXAMPLES
+#     SUNDIALS_BUILD_MODULES_LIST
+#     SUNDIALS_POST_PROCESSING
+#     SUNDIALS_REPORT
+#
 # -----------------------------------------------------------------
+
+
+#=================================================================#
+#                                                                 #
+#                                                                 #
+#               I N I T I A L I Z A T I O N S                     #
+#                                                                 #
+#                                                                 #
+#==================================================================
 
 #------------------------------------------------------------------
 # GREETING
@@ -20,19 +67,11 @@ AC_DEFUN([SUNDIALS_GREETING],
 [
 
 # Say Hi!
-if test "X${SUNDIALS_DEV}" = "Xyes"; then
-echo "
----------------------------------------------
-Running SUNDIALS Development Configure Script
----------------------------------------------
-"
-else
 echo "
 ---------------------------------
 Running SUNDIALS Configure Script
 ---------------------------------
 "
-fi
 
 ]) dnl END SUNDIALS_GREETING
 
@@ -42,9 +81,6 @@ fi
 
 AC_DEFUN([SUNDIALS_INITIALIZE],
 [
-
-# Specify directory containing auxillary build tools and M4 files
-AC_CONFIG_AUX_DIR([config])
 
 # Reference custom macros
 m4_include([config/mod_fortran.m4])
@@ -84,107 +120,46 @@ AC_PROG_MAKE_SET
 # Also sets INSTALL_PROGRAM and INSTALL_SCRIPT
 AC_PROG_INSTALL
 
-# Test if various environment variables exist.
-# If not, we may set some default values for them
-if test "X${CPPFLAGS}" = "X"; then
-  CPPFLAGS_PROVIDED="no"
-else
-  CPPFLAGS_PROVIDED="yes"
-fi
-if test "X${CFLAGS}" = "X"; then
-  CFLAGS_PROVIDED="no"
-else
-  CFLAGS_PROVIDED="yes"
-fi
-if test "X${LDFLAGS}" = "X"; then
-  LDFLAGS_PROVIDED="no"
-else
-  LDFLAGS_PROVIDED="yes"
-fi
-if test "X${FFLAGS}" = "X"; then
-  FFLAGS_PROVIDED="no"
-else
-  FFLAGS_PROVIDED="yes"
-fi
-
 # Set defaults for config/sundials_config.in file
 F77_MANGLE_MACRO1=""
 F77_MANGLE_MACRO2=""
-F77_CASE=""
-F77_UNDERSCORES=""
 PRECISION_LEVEL=""
 GENERIC_MATH_LIB=""
+BLAS_LAPACK_MACRO=""
 F77_MPI_COMM_F2C=""
+SUNDIALS_EXPORT="#define SUNDIALS_EXPORT"
 
 # Initialize enable status of various modules, options, and features
 # to their default values
-
+#
+# NOTE: when CPODES is released, change its default to enabled.
+#
 CVODE_ENABLED="yes"
 CVODES_ENABLED="yes"
 IDA_ENABLED="yes"
-#IDAS_ENABLED="yes"
-IDAS_ENABLED="no"
+IDAS_ENABLED="yes"
 KINSOL_ENABLED="yes"
-#CPODES_ENABLED="yes"
-CPODES_ENABLED="no"
+LAPACK_ENABLED="yes"
 FCMIX_ENABLED="yes"
 MPI_ENABLED="yes"
-STB_ENABLED="no"
+#
+CPODES_ENABLED="no"
+#
 EXAMPLES_ENABLED="no"
 F77_EXAMPLES_ENABLED="no"
-DEV_EXAMPLES_ENABLED="no"
 
 # Initialize variables that may NOT necessarily be initialized
 # during normal execution. Should NOT use uninitialized variables
 F77_OK="no"
+LAPACK_OK="no"
 MPI_C_COMP_OK="no"
 MPI_F77_COMP_OK="no"
-STB_PARALLEL_OK="no"
 
 # This variable is set to "yes" if an AC_MSG_WARN statement
 # was executed
 SUNDIALS_WARN_FLAG="no"
 
 ]) dnl END SUNDIALS_INITIALIZE
-
-#------------------------------------------------------------------
-# FIND ARCHIVER (not used)
-#------------------------------------------------------------------
-
-# Check for archiver (ar)
-# Define AR="ar rc" if found
-# AC_SUBST is called automatically for AR
-AC_DEFUN([SUNDIALS_CHECK_AR],
-[
-
-AC_CHECK_TOOL([AR],[ar],["none"])
-
-if test "X${AR}" = "Xnone"; then
-  AC_MSG_ERROR([cannot find archiver])
-else
-  AR="${AR} rc"
-fi
-
-]) dnl END SUNDIALS_CHECK_AR
-
-#------------------------------------------------------------------
-# FIND ARCHIVE INDEX UTILITY (not used)
-#------------------------------------------------------------------
-
-# Check for ranlib utility
-# Defines RANLIB="ranlib" if found
-# AC_SUBST is called automatically for RANLIB
-AC_DEFUN([SUNDIALS_CHECK_RANLIB],
-[
-
-AC_CHECK_TOOL([RANLIB],[ranlib],["none"])
-
-if test "X${RANLIB}" = "Xnone"; then
-  AC_MSG_WARN([cannot find ranlib])
-  SUNDIALS_WARN_FLAG="yes"
-fi
-
-]) dnl END SUNDIALS_CHECK_RANLIB
 
 #------------------------------------------------------------------
 # TEST ENABLES
@@ -194,11 +169,13 @@ fi
 #   CVODE_ENABLED    - enable CVODE module [yes]
 #   CVODES_ENABLED   - enable CVODES module [yes]
 #   IDA_ENABLED      - enable IDA module [yes]
+#   IDAS_ENABLED     - enable IDAS module [yes]
 #   KINSOL_ENABLED   - enable KINSOL module [yes]
-#   FCMIX_ENABLED    - enable Fortran-C inerfaces [yes]
+#   FCMIX_ENABLED    - enable Fortran-C interfaces [yes]
+#   LAPACK_ENABLED   - enable Lapack support [yes]
 #   MPI_ENABLED      - enable parallel support [yes]
 #   EXAMPLES_ENABLED - enable example programs [no]
-#   STB_ENABLED      - enable sundialsTB Matlab interfaces [no]
+#   F77_EXAMPLES_ENABLED - enable Fortran example programs [no]
 #  
 #------------------------------------------------------------------
 
@@ -258,20 +235,20 @@ fi
 
 # Check if user wants to disable IDAS module
 # If not, then make certain source directory actually exists
-#AC_ARG_ENABLE(ida,
-#[AC_HELP_STRING([--disable-idas],[disable configuration of IDAS])],
-#[
-#if test "X${enableval}" = "Xno"; then
-#  IDAS_ENABLED="no"
-#fi
-#],
-#[
-#if test -d ${srcdir}/src/idas  ; then
-#  IDAS_ENABLED="yes"
-#else
-#  IDAS_ENABLED="no"
-#fi
-#])
+AC_ARG_ENABLE(idas,
+[AC_HELP_STRING([--disable-idas],[disable configuration of IDAS])],
+[
+if test "X${enableval}" = "Xno"; then
+  IDAS_ENABLED="no"
+fi
+],
+[
+if test -d ${srcdir}/src/idas  ; then
+  IDAS_ENABLED="yes"
+else
+  IDAS_ENABLED="no"
+fi
+])
 
 # Check if user wants to disable KINSOL MODULE
 # If not, then make certain source directory actually exists
@@ -292,116 +269,6 @@ fi
 
 # Check if user wants to disable CPODES module
 # If not, then make certain source directory actually exists
-#AC_ARG_ENABLE(cpodes,
-#[AC_HELP_STRING([--disable-cpodes],[disable configuration of CPODES])],
-#[
-#if test "X${enableval}" = "Xno"; then
-#  CPODES_ENABLED="no"
-#fi
-#],
-#[
-#if test -d ${srcdir}/src/cpodes ; then
-#  CPODES_ENABLED="yes"
-#else
-#  CPODES_ENABLED="no"
-#fi
-#])
-
-# Check if user wants to disable Fortran support (FCMIX components).
-AC_ARG_ENABLE([fcmix],
-[AC_HELP_STRING([--disable-fcmix], [disable Fortran-C support])],
-[
-if test "X${enableval}" = "Xno"; then
-  FCMIX_ENABLED="no"
-fi
-],
-[
-if test "X${CVODE_ENABLED}" = "Xno" && test "X${KINSOL_ENABLED}" = "Xno" && test "X${IDA_ENABLED}" = "Xno"; then
-  FCMIX_ENABLED="no"
-fi
-])
-
-# Check if user wants to disable support for MPI.
-# If not, then make certain source directory actually exists
-AC_ARG_ENABLE([mpi],
-[AC_HELP_STRING([--disable-mpi],[disable MPI support])],
-[
-if test "X${enableval}" = "Xno"; then
-  MPI_ENABLED="no"
-fi
-],
-[
-if test -d ${srcdir}/src/nvec_par || test -d ${srcdir}/src/nvec_spcpar; then
-  MPI_ENABLED="yes"
-else
-  MPI_ENABLED="no"
-fi
-])
-
-# Check if user wants to enable all examples
-# Examples are NOT built by default
-AC_ARG_ENABLE(examples,
-[AC_HELP_STRING([--enable-examples],[enable configuration of examples])],
-[
-if test "X${enableval}" = "Xno"; then
-  EXAMPLES_ENABLED="no"
-else
-  EXAMPLES_ENABLED="yes"
-fi
-])
-
-# Check if user wants to enable support for MEX compilation
-# sundialsTB is NOT built by default
-# If yes, then make certain source directory actually exists
-AC_ARG_ENABLE([sundialsTB],
-[AC_HELP_STRING([--enable-sundialsTB],[enable configuration of sundialsTB])],
-[
-if test "X${enableval}" = "Xno"; then
-  STB_ENABLED="no"
-else
-  if test -d ${srcdir}/sundialsTB ; then
-    STB_ENABLED="yes"
-  else
-    STB_ENABLED="no"
-  fi
-fi
-])
-
-# Fortran examples are enabled only if bot FCMIX and EXAMPLES are enabled
-if test "X${FCMIX_ENABLED}" = "Xyes" && test "X${EXAMPLES_ENABLED}" = "Xyes"; then
-  F77_EXAMPLES_ENABLED="yes"
-fi
-
-]) dnl END SUNDIALS_ENABLES
-
-#------------------------------------------------------------------
-# TEST DEVELOPMENT ENABLES
-#------------------------------------------------------------------
-
-AC_DEFUN([SUNDIALS_DEV_ENABLES],
-[
-
-IDAS_ENABLED="yes"
-# Check if user wants to disable IDAS module
-# If not, then make certain source directory actually exists
-AC_ARG_ENABLE(idas,
-[AC_HELP_STRING([--disable-idas],[disable configuration of IDAS])],
-[
-if test "X${enableval}" = "Xno"; then
-  IDAS_ENABLED="no"
-fi
-],
-[
-if test -d ${srcdir}/src/idas ; then
-  IDAS_ENABLED="yes"
-else
-  IDAS_ENABLED="no"
-fi
-])
-
-CPODES_ENABLED="yes"
-# Check if user wants to disable CPODES module
-# If not, then make certain source directory actually exists
 AC_ARG_ENABLE(cpodes,
 [AC_HELP_STRING([--disable-cpodes],[disable configuration of CPODES])],
 [
@@ -417,8 +284,74 @@ else
 fi
 ])
 
+# Check if user wants to disable Fortran support (FCMIX components).
+AC_ARG_ENABLE([fcmix],
+[AC_HELP_STRING([--disable-fcmix], [disable Fortran-C support])],
+[
+if test "X${enableval}" = "Xno"; then
+  FCMIX_ENABLED="no"
+fi
+],
+[
+if test "X${CVODE_ENABLED}" = "Xno" && test "X${KINSOL_ENABLED}" = "Xno" && test "X${IDA_ENABLED}" = "Xno"; then
+  FCMIX_ENABLED="no"
+fi
+])
 
-]) dnl END SUNDIALS_DEV_ENABLES
+# Check if user wants to disable Lapack support.
+AC_ARG_ENABLE([lapack],
+[AC_HELP_STRING([--disable-lapack], [disable Lapack support])],
+[
+if test "X${enableval}" = "Xno"; then
+  LAPACK_ENABLED="no"
+fi
+])
+
+# Check if user wants to disable support for MPI.
+# If not, set the default based on whetehr certain source directories exist
+AC_ARG_ENABLE([mpi],
+[AC_HELP_STRING([--disable-mpi],[disable MPI support])],
+[
+if test "X${enableval}" = "Xno"; then
+  MPI_ENABLED="no"
+fi
+],
+[
+if test -d ${srcdir}/src/nvec_par || test -d ${srcdir}/src/nvec_spcpar; then
+  MPI_ENABLED="yes"
+else
+  MPI_ENABLED="no"
+fi
+])
+
+# Check if user wants to enable all examples.
+# Examples are NOT built by default
+AC_ARG_ENABLE(examples,
+[AC_HELP_STRING([--enable-examples],[enable configuration of examples])],
+[
+if test "X${enableval}" = "Xno"; then
+  EXAMPLES_ENABLED="no"
+else
+  EXAMPLES_ENABLED="yes"
+fi
+])
+
+# Fortran examples are enabled only if both FCMIX and EXAMPLES are enabled
+if test "X${FCMIX_ENABLED}" = "Xyes" && test "X${EXAMPLES_ENABLED}" = "Xyes"; then
+  F77_EXAMPLES_ENABLED="yes"
+fi
+
+]) dnl END SUNDIALS_ENABLES
+
+
+#=================================================================#
+#                                                                 #
+#                                                                 #
+#              C    C O M P I L E R     T E S T S                 #
+#                                                                 #
+#                                                                 #
+#==================================================================
+
 
 #------------------------------------------------------------------
 # CHECK C COMPILER
@@ -426,6 +359,7 @@ fi
 
 AC_DEFUN([SUNDIALS_SET_CC],
 [
+
 
 if test "X${CC}" = "X"; then
 
@@ -439,14 +373,14 @@ if test "X${CC}" = "X"; then
 
 else
 
-  SUNDIALS_CHECK_CC
+  SUNDIALS_CC_CHECK
 
 fi
 
 ]) dnl END SUNDIALS_SET_CC
  
 
-AC_DEFUN([SUNDIALS_CHECK_CC],
+AC_DEFUN([SUNDIALS_CC_CHECK],
 [
 
 # Default is C programming language (initialize language stack)
@@ -500,18 +434,13 @@ PRECISION_LEVEL="#define SUNDIALS_DOUBLE_PRECISION 1"
 
 AC_ARG_WITH([],[ ],[])
 
-# If CFLAGS is not provided, set defaults
-if test "X${CFLAGS_PROVIDED}" = "Xno"; then
-  SUNDIALS_DEFAULT_CFLAGS
-fi
-
-# Add any additional CFLAGS
-AC_MSG_CHECKING([for extra C compiler flags])
+# Overwrite CFLAGS
+AC_MSG_CHECKING([for C compiler flags])
 AC_ARG_WITH(cflags,
-[AC_HELP_STRING([--with-cflags=ARG],[add extra C compiler flags])],
+[AC_HELP_STRING([--with-cflags=ARG],[specify C compiler flags (CFLAGS will be overridden)])],
 [
 AC_MSG_RESULT([${withval}])
-CFLAGS="${CFLAGS} ${withval}"
+CFLAGS="${withval}"
 ],
 [
 AC_MSG_RESULT([none])
@@ -520,35 +449,25 @@ AC_MSG_RESULT([none])
 # Set CPP to command that runs C preprocessor
 AC_PROG_CPP
 
-# If CPPFLAGS is not provided, set defaults
-if test "X${CPPFLAGS_PROVIDED}" = "Xno"; then
-  SUNDIALS_DEFAULT_CPPFLAGS
-fi
-
-# Add any additional CPPFLAGS
-AC_MSG_CHECKING([for extra C/C++ preprocessor flags])
+# Overwrite CPPFLAGS
+AC_MSG_CHECKING([for C/C++ preprocessor flags])
 AC_ARG_WITH(cppflags,
-[AC_HELP_STRING([--with-cppflags=ARG],[add extra C/C++ preprocessor flags])],
+[AC_HELP_STRING([--with-cppflags=ARG],[specify C/C++ preprocessor flags (CPPFLAGS will be overridden)])],
 [
 AC_MSG_RESULT([${withval}])
-CPPFLAGS="${CPPFLAGS} ${withval}"
+CPPFLAGS="${withval}"
 ],
 [
 AC_MSG_RESULT([none])
 ])
 
-# If LDFLAGS is not provided, set defaults
-if test "X${LDFLAGS_PROVIDED}" = "Xno"; then
-  SUNDIALS_DEFAULT_LDFLAGS
-fi
-
-# Add any additional linker flags 
-AC_MSG_CHECKING([for extra linker flags])
+# Overwrite LDFLAGS
+AC_MSG_CHECKING([for linker flags])
 AC_ARG_WITH(ldflags,
-[AC_HELP_STRING([--with-ldflags=ARG],[add extra linker flags])],
+[AC_HELP_STRING([--with-ldflags=ARG],[specify linker flags (LDFLAGS will be overridden)])],
 [
 AC_MSG_RESULT([${withval}])
-LDFLAGS="${LDFLAGS} ${withval}"
+LDFLAGS="${withval}"
 ],
 [
 AC_MSG_RESULT([none])
@@ -719,131 +638,198 @@ AC_LANG_POP([C])
 
 ]) dnl END SUNDIALS_CPLUSPLUS_CHECK
 
+
+
+
+#=================================================================#
+#                                                                 #
+#                                                                 #
+#             F O R T R A N     S U P P O R T                     #
+#                                                                 #
+#                                                                 #
+#==================================================================
+
+
+
 #------------------------------------------------------------------
-# DEFAULT CFLAGS
+# FORTRAN SUPPORT
 #
-# Set default CFLAGS (called only if CFLAGS is not provided)
-#------------------------------------------------------------------
-
-AC_DEFUN([SUNDIALS_DEFAULT_CFLAGS],
-[
-
-# Extract executable name of C compiler, for optional use below
-CC_EXEC=`basename "${CC}"`
-
-case $host in 
-
-  # IA-32 system running Linux
-  i*-pc-linux-*)
-    #if test "X${GCC}" = "Xyes"; then
-    #  if test "X${FLOAT_TYPE}" = "Xsingle" || test "X${FLOAT_TYPE}" = "Xdouble"; then
-    #    CFLAGS="-ffloat-store"
-    #  fi
-    #fi
-    ;;
-
-  *)
-    CFLAGS=""
-    ;;
-
-esac
-
-]) dnl END SUNDIALS_DEFAULT_CFLAGS
-
-#------------------------------------------------------------------
-# DEFAULT CPPFLAGS
-#------------------------------------------------------------------
-
-AC_DEFUN([SUNDIALS_DEFAULT_CPPFLAGS],
-[
-
-# Set default CPPFLAGS (called only if CPPFLAGS is not provided)
-
-CPPFLAGS=""
-
-]) dnl END SUNDIALS_DEFAULT_CFLAGS
-
-#------------------------------------------------------------------
-# DEFAULT LDFLAGS
-#------------------------------------------------------------------
-
-AC_DEFUN([SUNDIALS_DEFAULT_LDFLAGS],
-[
-
-# Set default LDFLAGS (called only if LDFLAGS is not provided)
-
-case $build_os in
-
-  *cygwin*)
-     # Under cygwin, if building shared libraries, add -no-undefined
-     # and explicitly specify library extension
-     if test "X${enable_shared}" = "Xyes"; then
-       LDFLAGS="-no-undefined"
-     fi
-     ;;
-
-  *mingw*)
-     # Under mingw, if building shared libraries, add -no-undefined
-     # and explicitly specify library extension
-     if test "X${enable_shared}" = "Xyes"; then
-       LDFLAGS="-no-undefined"
-     fi
-     ;;
-
-
-  *)
-     LDFLAGS=""
-     ;;
-
-esac
-
-]) dnl END SUNDIALS_DEFAULT_CFLAGS
-
-#------------------------------------------------------------------
-# CHECK FORTRAN COMPILER
+# Fortran support is required if FCMIX is enabled OR if LAPACK
+# is enabled. In either case, we need a working F77 compiler in
+# order to determine the Fortran name-mangling scheme.
 #
-# If a working compiler cannot be found, set F77_OK="no" and issue
-# a warning that Fortran examples will be disabled
+# If we do need Fortran support, we first find and test a F77
+# compiler, determine the mangling scheme, then we find the 
+# libraries required to link C and Fortran.
 #
+# Throughout this function we use the control variable F77_OK
+# which was initialized to "no".
 #------------------------------------------------------------------
 
-AC_DEFUN([SUNDIALS_SET_F77],
+AC_DEFUN([SUNDIALS_F77_SUPPORT],
 [
+
+F77_OK="yes"
+
+# Look for a F77 compiler
+# If unsuccessful, disable all Fortran support
+
+AC_PROG_F77(f77 g77)
 
 if test "X${F77}" = "X"; then
 
-  AC_MSG_WARN([cannot find a Fortran compiler])
+  F77_OK="no"
+  SUNDIALS_WARN_FLAG="yes"
+
   echo ""
   echo "   Unable to find a working Fortran compiler"
   echo ""
   echo "   Try using F77 to explicitly specify a C compiler"
   echo ""
-  echo "   Disabling F77 examples..."
+  if test "X${FCMIX_ENABLED}" = "Xyes"; then
+    echo "   Disabling compilation of Fortran-C interfaces..."
+  fi
+  if test "X${LAPACK_ENABLED}" = "Xyes"; then
+    echo "   Disabling compilation of Blas/Lapack interfaces..."
+  fi
   echo ""
 
-  F77_OK="no"
+  FCMIX_ENABLED="no"
+  LAPACK_ENABLED="no"
   F77_EXAMPLES_ENABLED="no"
-  SUNDIALS_WARN_FLAG="yes"
-
-else
-
-  F77_OK="yes"
-  SUNDIALS_CHECK_F77
 
 fi
 
-]) dnl END SUNDIALS_SET_F77
+# Check Fortran compiler
+# If unsuccessful, disable all Fortran support
+
+if test "X${F77_OK}" = "Xyes"; then
+
+  SUNDIALS_F77_CHECK
+
+  if test "X${F77_OK}" = "Xno"; then
+
+    SUNDIALS_WARN_FLAG="yes"
+
+    echo ""
+    echo "   Unable to compile test program using given Fortran compiler."
+    echo ""
+    if test "X${FCMIX_ENABLED}" = "Xyes"; then
+      echo "   Disabling compilation of Fortran-C interfaces..."
+    fi
+    if test "X${LAPACK_ENABLED}" = "Xyes"; then
+      echo "   Disabling compilation of Blas/Lapack interfaces..."
+    fi
+    echo ""
+
+    FCMIX_ENABLED="no"
+    LAPACK_ENABLED="no"
+    F77_EXAMPLES_ENABLED="no"
+    
+  fi
+
+fi
 
 
-AC_DEFUN([SUNDIALS_CHECK_F77],
+# Determine the Fortran name-mangling scheme
+# If successfull, provide variable description templates for config.hin 
+# and config.h files required by autoheader utility
+# Otherwise, disable all Fortran support.
+
+if test "X${F77_OK}" = "Xyes"; then
+
+  SUNDIALS_F77_NAME_MANGLING
+
+  AH_TEMPLATE([SUNDIALS_F77_FUNC], [FCMIX: Define name-mangling macro for C identifiers])
+  AH_TEMPLATE([SUNDIALS_F77_FUNC_], [FCMIX: Define name-mangling macro for C identifiers with underscores])
+
+  if test "X${F77_OK}" = "Xno"; then
+
+    SUNDIALS_WARN_FLAG="yes"
+
+    echo ""
+    echo "   Unable to determine Fortran name-mangling scheme."
+    echo ""
+    if test "X${FCMIX_ENABLED}" = "Xyes"; then
+      echo "   Disabling compilation of Fortran-C interfaces..."
+    fi
+    if test "X${LAPACK_ENABLED}" = "Xyes"; then
+      echo "   Disabling compilation of Blas/Lapack interfaces..."
+    fi
+    echo ""
+
+    F77_EXAMPLES_ENABLED="no"
+    FCMIX_ENABLED="no"
+    LAPACK_ENABLED="no"
+
+  fi
+
+fi
+
+
+# If LAPACK is enabled, determine the proper library linkage
+# If successful, set the libaries
+# Otherwise, disable all Blas/Lapack support.
+
+if test "X${LAPACK_ENABLED}" = "Xyes" && test "X${F77_OK}" = "Xyes"; then
+
+
+  SUNDIALS_F77_LAPACK_SET
+
+  if test "X${LAPACK_OK}" = "Xyes"; then
+
+    AC_MSG_CHECKING([for Blas/Lapack library linkage])
+    BLAS_LAPACK_LIBS="${LAPACK_LIBS} ${BLAS_LIBS} ${LIBS} ${FLIBS}"
+    AC_MSG_RESULT([${LAPACK_LIBS} ${BLAS_LIBS}])
+
+  else
+
+    SUNDIALS_WARN_FLAG="yes"
+    AC_MSG_CHECKING([for Blas/Lapack library linkage])
+    AC_MSG_RESULT("no")
+    echo ""
+    echo "   Unable to determine Blas/Lapack library linkage."
+    echo ""
+    echo "   Try using --with-blas and --with-lapack."
+    echo ""
+    echo "   Disabling compilation of Blas/Lapack interfaces..."
+
+    LAPACK_ENABLED="no"
+
+  fi
+
+fi
+
+
+# Set the macro BLAS_LAPACK_MACRO for expansion in sundials_config.h
+
+AH_TEMPLATE([SUNDIALS_BLAS_LAPACK], [Availability of Blas/Lapack libraries])
+
+if test "X${LAPACK_ENABLED}" = "Xyes"; then
+  AC_DEFINE([SUNDIALS_BLAS_LAPACK],[1],[])
+  BLAS_LAPACK_MACRO="#define SUNDIALS_BLAS_LAPACK 1"
+else
+  AC_DEFINE([SUNDIALS_BLAS_LAPACK],[0],[])
+  BLAS_LAPACK_MACRO="#define SUNDIALS_BLAS_LAPACK 0"
+fi
+
+]) dnl SUNDIALS_F77_SUPPORT
+
+#------------------------------------------------------------------
+# CHECK FORTRAN COMPILER
+#
+# Test the Fortran compiler by attempting to compile and link a 
+# simple Fortran program. If the test succeeds, set F77_OK=yes.
+# If the test fails, set F77_OK="no"
+#
+# Finally, check if we must use a Fortran compiler to link the
+# Fortran codes (default is to use CC).
+#------------------------------------------------------------------
+
+AC_DEFUN([SUNDIALS_F77_CHECK],
 [
 
 AC_LANG_PUSH([Fortran 77])
-
-# If FFLAGS is not provided, set defaults
-if test "X${FFLAGS_PROVIDED}" = "Xno"; then
-  SUNDIALS_DEFAULT_FFLAGS
-fi        
 
 # Add any additional FFLAGS
 AC_MSG_CHECKING([for extra Fortran compiler flags])
@@ -861,173 +847,7 @@ AC_MSG_RESULT([none])
 # Note: if FLIBS is defined, it is left unchanged
 AC_F77_LIBRARY_LDFLAGS
 
-# Provide variable description templates for config.hin and config.h files
-# Required by autoheader utility
-AH_TEMPLATE([SUNDIALS_UNDERSCORE_NONE],
-            [FCMIX: Do NOT append any underscores to functions names])
-AH_TEMPLATE([SUNDIALS_UNDERSCORE_ONE],
-            [FCMIX: Append ONE underscore to function names])
-AH_TEMPLATE([SUNDIALS_UNDERSCORE_TWO],
-            [FCMIX: Append TWO underscores to function names])
-
-# Provide variable description templates for config.hin and config.h files
-# Required by autoheader utility
-AH_TEMPLATE([SUNDIALS_CASE_UPPER],
-            [FCMIX: Make function names uppercase])
-AH_TEMPLATE([SUNDIALS_CASE_LOWER],
-            [FCMIX: Make function names lowercase])
-
-# Set default name-mangling scheme
-RUN_F77_WRAPPERS="yes"
-AC_DEFINE([SUNDIALS_CASE_LOWER],[1],[])
-F77_CASE="#define SUNDIALS_CASE_LOWER 1"
-AC_DEFINE([SUNDIALS_UNDERSCORE_ONE],[1],[])
-F77_UNDERSCORES="#define SUNDIALS_UNDERSCORE_ONE 1"
-
-# If user provides the number of underscores, overwrite default value
-AC_ARG_WITH(f77underscore, 
-[AC_HELP_STRING([--with-f77underscore=ARG],[specify number of underscores to append to function names (none/one/two) [AUTO]],[])],
-[
-if test "X${withval}" = "Xnone"; then
-  AC_DEFINE([SUNDIALS_UNDERSCORE_NONE],[1],[])
-  F77_UNDERSCORES="#define SUNDIALS_UNDERSCORE_NONE 1"
-elif test "X${withval}" = "Xone"; then
-  AC_DEFINE([SUNDIALS_UNDERSCORE_ONE],[1],[])
-  F77_UNDERSCORES="#define SUNDIALS_UNDERSCORE_ONE 1"
-elif test "X${withval}" = "Xtwo"; then
-  AC_DEFINE([SUNDIALS_UNDERSCORE_TWO],[1],[])
-  F77_UNDERSCORES="#define SUNDIALS_UNDERSCORE_TWO 1"
-else
-  AC_MSG_ERROR([invalid input])
-fi
-RUN_F77_WRAPPERS="no"
-])
-
-# If user provides the case, overwrite default value
-AC_ARG_WITH(f77case, 
-[AC_HELP_STRING([--with-f77case=ARG   ],[specify case of function names (lower/upper) [AUTO]],[])],
-[
-if test "X${withval}" = "Xupper"; then
-  AC_DEFINE([SUNDIALS_CASE_UPPER],[1],[])
-  F77_CASE="#define SUNDIALS_CASE_UPPER 1"
-elif test "X${withval}" = "Xlower"; then
-  AC_DEFINE([SUNDIALS_CASE_LOWER],[1],[])
-  F77_CASE="#define SUNDIALS_CASE_LOWER 1"
-else
-  AC_MSG_ERROR([invalid input])
-fi
-RUN_F77_WRAPPERS="no"
-])
-
-# Determine how to properly mangle function names so Fortran subroutines can
-# call C functions included in SUNDIALS libraries
-# Defines C preprocessor macros F77_FUNC and F77_FUNC_
-if test "X${RUN_F77_WRAPPERS}" = "Xyes"; then
-  SUNDIALS_F77_WRAPPERS
-fi
-
-# Check if we must use a Fortran compiler to link the Fortran examples
-# (default is to use CC)
-AC_MSG_CHECKING([which linker to use])
-SUNDIALS_F77_LNKR_CHECK
-AC_MSG_RESULT([${F77_LNKR_OUT}])
-
-AC_LANG_POP([Fortran 77])
-
-]) dnl END SUNDIALS_SET_F77
-
-#------------------------------------------------------------------
-# DETERMINE F77 LINKER
-#
-# Set F77_LNKR variable
-#------------------------------------------------------------------
-
-AC_DEFUN([SUNDIALS_F77_LNKR_CHECK],
-[
-
-# Perform the next test only if using a C++ compiler to build SUNDIALS.
-# Note: SUNDIALS_CPLUSPLUS_CHECK macro was called by SUNDIALS_SET_CC,
-#       so we need only check the value of USING_CPLUSPLUS_COMP.
-if test "X${USING_CPLUSPLUS_COMP}" = "Xyes"; then
-
-  # Compile simple Fortran example, but do NOT link
-  # Note: result stored as conftest.${ac_objext}
-  AC_COMPILE_IFELSE(
-  [AC_LANG_SOURCE(
-  [[
-	PROGRAM SUNDIALS
-	WRITE(*,*)'TEST'
-	END
-  ]])],
-  [
-
-  # Temporarily reset LIBS environment variable to perform test
-  SAVED_LIBS="${LIBS}"
-  LIBS="${LIBS} ${FLIBS}"
-
-  # Switch working language to C for next test
-  AC_LANG_PUSH([C])
-
-  # Check if CC can link Fortran example
-  # Note: AC_LINKONLY_IFELSE is a custom macro (modifications made to
-  # general.m4 and c.m4) (see config/cust_general.m4 and config/mod_c.m4)
-  AC_LINKONLY_IFELSE([],[F77_LNKR_CHECK_OK="yes"],[F77_LNKR_CHECK_OK="no"])
-
-  # Revert back to previous language (Fortran 77)
-  AC_LANG_POP([C])
-
-  # Set LIBS environment variable back to original value
-  LIBS="${SAVED_LIBS}"
-
-  # Note: F77_LNKR variable is used by serial Fortran example Makefile's
-  if test "X${F77_LNKR_CHECK_OK}" = "Xyes"; then
-    F77_LNKR="\$(CC)"
-    F77_LNKR_OUT="${CC}"
-  else
-    F77_LNKR="\$(F77)"
-    F77_LNKR_OUT="${F77}"
-  fi
-
-  ],
-  [
-
-  # If compilation fails, then just use F77
-  F77_LNKR="\$(F77)"
-  F77_LNKR_OUT="${F77}"
-
-  ])
-
-else
-
-  # Using a C compiler so use F77 to link serial Fortran examples
-  F77_LNKR="\$(F77)"
-  F77_LNKR_OUT="${F77}"
-
-fi
-
-]) dnl SUNDIALS_F77_LNKR_CHECK
-
-#------------------------------------------------------------------
-# DETERMINE F77 NAME-MANGLING SCHEME
-#------------------------------------------------------------------
-
-AC_DEFUN([SUNDIALS_F77_WRAPPERS],
-[
-
-# Replacement macro for AC_F77_WRAPPERS which has too many problems
-# (based on implementation of AC_F77_WRAPPERS minus the "fluff")
-
-# Provide variable description templates for config.hin and config.h files
-# Required by autoheader utility
-AH_TEMPLATE(F77[_FUNC],
-            [FCMIX: Define name-mangling macro])
-
-# Remaining test pertains to Fortran programming language
-AC_LANG_PUSH([Fortran 77])
-
-AC_MSG_CHECKING([Fortran name-mangling scheme])
-
-# Compile a dummy Fortran subroutine
+# Try to compile a simple Fortran program (no linking)
 AC_COMPILE_IFELSE(
 [AC_LANG_SOURCE(
 [[
@@ -1035,164 +855,471 @@ AC_COMPILE_IFELSE(
 	RETURN
 	END
 ]])],
-[
+[F77_OK="yes"],
+[F77_OK="no"])
 
-mv conftest.${ac_objext} f77_wrapper_check.${ac_objext}
+# If CC is a C++ compiler (decided in SUNDIALS_CPLUSPLUS_CHECK), we must use 
+# it to link the Fortran examples. In this case, test if that is successful.
+# Otherwise, simply use F77 as the linker
 
-# Temporarily reset LIBS environment variable to perform test
-SAVED_LIBS="${LIBS}"
-LIBS="f77_wrapper_check.${ac_objext} ${LIBS} ${FLIBS}"
-
-AC_LANG_PUSH([C])
-
-F77_WRAPPER_CHECK_OK="no"
-for i in "sundials" "SUNDIALS"
-do
-  for j in "" "_" "__"
-  do
-    F77_MANGLED_NAME="${i}${j}"
-    AC_LINK_IFELSE([AC_LANG_CALL([],[${F77_MANGLED_NAME}])],[F77_WRAPPER_CHECK_OK="yes" ; break 2])
-  done
-done
-
-AC_LANG_POP([C])
-
-# If test succeeded, then set F77_FUNC_CASE and F77_FUNC_UNDERSCORES variables
-if test "X${F77_WRAPPER_CHECK_OK}" = "Xyes"; then
-  # Determine case (lower, upper)
-  if test "X${i}" = "Xsundials"; then
-    F77_FUNC_CASE="lowercase"
+if test "X${F77_OK}" = "Xyes"; then
+  AC_MSG_CHECKING([which linker to use])
+  if test "X${USING_CPLUSPLUS_COMP}" = "Xyes"; then
+    SUNDIALS_F77_LNKR_CHECK
   else
-    F77_FUNC_CASE="uppercase"
+    F77_LNKR="${F77}"
   fi
-  # Determine number of underscores to append (none, one, two)
-  if test "X${j}" = "X"; then
-    F77_FUNC_UNDERSCORES="no underscores"
-  elif test "X${j}" = "X_"; then
-    F77_FUNC_UNDERSCORES="one underscore"
-  else
-    F77_FUNC_UNDERSCORES="two underscores"
-  fi
-  AC_MSG_RESULT([${F77_FUNC_CASE} with ${F77_FUNC_UNDERSCORES}])
-  # Set exported macro definition (F77_FUNC)
-  if test "X${F77_FUNC_CASE}" = "Xlowercase"; then
-    if test "X${F77_FUNC_UNDERSCORES}" = "Xno underscores"; then
-      AC_DEFINE(F77[_FUNC(name,NAME)],[name],[])
-      F77_MANGLE_MACRO1="#define F77_FUNC(name,NAME) name"
-      F77_MANGLE_MACRO2="#define F77_FUNC_(name,NAME) name"
-    elif test "X${F77_FUNC_UNDERSCORES}" = "Xone underscore"; then
-      AC_DEFINE(F77[_FUNC(name,NAME)],[name ## _],[])
-      F77_MANGLE_MACRO1="#define F77_FUNC(name,NAME) name ## _"
-      F77_MANGLE_MACRO2="#define F77_FUNC_(name,NAME) name ## _"
-    elif test "X${F77_FUNC_UNDERSCORES}" = "Xtwo underscores"; then
-      AC_DEFINE(F77[_FUNC(name,NAME)],[name ## __],[])
-      F77_MANGLE_MACRO1="#define F77_FUNC(name,NAME) name ## __"
-      F77_MANGLE_MACRO2="#define F77_FUNC_(name,NAME) name ## __"
-    fi
-  elif test "X${F77_FUNC_CASE}" = "Xuppercase"; then
-    if test "X${F77_FUNC_UNDERSCORES}" = "Xno underscores"; then
-      AC_DEFINE(F77[_FUNC(name,NAME)],[NAME],[])
-      F77_MANGLE_MACRO1="#define F77_FUNC(name,NAME) NAME"
-      F77_MANGLE_MACRO2="#define F77_FUNC_(name,NAME) NAME"
-    elif test "X${F77_FUNC_UNDERSCORES}" = "Xone underscore"; then
-      AC_DEFINE(F77[_FUNC(name,NAME)],[NAME ## _],[])
-      F77_MANGLE_MACRO1="#define F77_FUNC(name,NAME) NAME ## _"
-      F77_MANGLE_MACRO2="#define F77_FUNC_(name,NAME) NAME ## _"
-    elif test "X${F77_FUNC_UNDERSCORES}" = "Xtwo underscores"; then
-      AC_DEFINE(F77[_FUNC(name,NAME)],[NAME ## __],[])
-      F77_MANGLE_MACRO1="#define F77_FUNC(name,NAME) NAME ## __"
-      F77_MANGLE_MACRO2="#define F77_FUNC_(name,NAME) NAME ## __"
-    fi
-  fi
-# If test failed, then tell user to use '--with-f77case' and '--with-f77underscore'
-# and disable Fortran support
-else
-  AC_MSG_RESULT([UNKNOWN])
-  AC_MSG_WARN([cannot determine Fortran name-mangling scheme])
-  echo ""
-  echo "   Unable to determine name-mangling scheme required by Fortran"
-  echo "   compiler."
-  echo ""
-  echo "   Try using --with-f77case and --with-f77underscore to explicitly"
-  echo "   specify the appropriate name-mangling scheme."
-  echo ""
-  echo "   Disabling Fortran support..."
-  echo ""
-  F77_OK="no"
-  FCMIX_ENABLED="no"
-  F77_EXAMPLES_ENABLED="no"
-  SUNDIALS_WARN_FLAG="yes"
+  AC_MSG_RESULT([${F77_LNKR}])
 fi
-
-# Set LIBS environment variable back to original value
-LIBS="${SAVED_LIBS}"
-
-],
-[
-
-# If a compilation error occurred, then disable Fortran support
-AC_MSG_RESULT([ERROR])
-echo ""
-echo "   Unable to compile test program using given Fortran compiler."
-echo ""
-echo "   Disabling Fortran support..."
-echo ""
-F77_OK="no"
-FCMIX_ENABLED="no"
-F77_EXAMPLES_ENABLED="no"
-
-])
 
 # Reset language (remove 'Fortran 77' from stack)
 AC_LANG_POP([Fortran 77])
 
+]) dnl END SUNDIALS_SET_F77
+
+
+#------------------------------------------------------------------
+# F77 LINKER CHECK
+# Check if the C++ compiler CC can be used to link a Fortran program.
+#------------------------------------------------------------------
+
+AC_DEFUN([SUNDIALS_F77_LNKR_CHECK],
+[
+
+F77_LNKR_CHECK_OK="no"
+
+# Compile simple Fortran example, but do NOT link
+# Note: result stored as conftest.${ac_objext}
+AC_COMPILE_IFELSE(
+[AC_LANG_SOURCE(
+[[
+	PROGRAM SUNDIALS
+	WRITE(*,*)'TEST'
+	END
+]])],
+[
+
+# Temporarily reset LIBS environment variable to perform test
+SAVED_LIBS="${LIBS}"
+LIBS="${LIBS} ${FLIBS}"
+
+# Switch working language to C for next test
+AC_LANG_PUSH([C])
+
+# Check if CC can link Fortran example
+# Note: AC_LINKONLY_IFELSE is a custom macro (modifications made to
+# general.m4 and c.m4) (see config/cust_general.m4 and config/mod_c.m4)
+AC_LINKONLY_IFELSE([],[F77_LNKR_CHECK_OK="yes"],[F77_LNKR_CHECK_OK="no"])
+
+# Revert back to previous language (Fortran 77)
+AC_LANG_POP([C])
+
+# Set LIBS environment variable back to original value
+LIBS="${SAVED_LIBS}"
+
+])
+
+# If either the compilation or the linking failed, we should
+# disable building the Fortran examples
+# For now, use F77 as the linker...
+if test "X${F77_LNKR_CHECK_OK}" = "Xyes"; then
+  F77_LNKR="${CC}"
+else
+  F77_LNKR="${F77}"
+fi
+
+]) dnl SUNDIALS_F77_LNKR_CHECK
+
+
+#------------------------------------------------------------------
+# DETERMINE FORTRAN NAME-MANGLING SCHEME
+#
+# Compiling a simple Fortran example and link it using a C compiler.
+# Interpret results to infer name-mangling scheme.
+#------------------------------------------------------------------
+
+
+AC_DEFUN([SUNDIALS_F77_NAME_MANGLING],
+[
+
+AC_LANG_PUSH([Fortran 77])
+
+# (1) Compile a dummy Fortran subroutine named SUNDIALS
+
+FNAME_STATUS="none"
+
+AC_COMPILE_IFELSE(
+  [AC_LANG_SOURCE(
+  [[
+	SUBROUTINE SUNDIALS()
+	RETURN
+	END
+  ]])],
+  [
+
+  mv conftest.${ac_objext} f77_wrapper_check.${ac_objext}
+
+  # Temporarily reset LIBS environment variable to perform test
+  SAVED_LIBS="${LIBS}"
+  LIBS="f77_wrapper_check.${ac_objext} ${LIBS} ${FLIBS}"
+
+  AC_LANG_PUSH([C])
+
+  for i in "sundials" "SUNDIALS"
+  do
+    for j in "" "_" "__"
+    do
+      F77_MANGLED_NAME="${i}${j}"
+      AC_LINK_IFELSE([AC_LANG_CALL([],[${F77_MANGLED_NAME}])],[FNAME_STATUS="set" ; break 2])
+    done
+  done
+
+  AC_LANG_POP([C])
+
+  # If test succeeded, then set the F77_MANGLE_MACRO1 macro
+
+  if test "X${FNAME_STATUS}" = "Xset"; then
+
+    if test "X${i}" = "Xsundials"; then
+
+      FNAME_MSG="lower case "
+
+      if test "X${j}" = "X"; then
+        FNAME_MSG="${FNAME_MSG} + no underscore"
+        AC_DEFINE([SUNDIALS_F77_FUNC(name,NAME)],[name],[])
+        F77_MANGLE_MACRO1="#define SUNDIALS_F77_FUNC(name,NAME) name"
+        dgemm="dgemm"
+        dgetrf="dgetrf"
+      elif test "X${j}" = "X_"; then
+        FNAME_MSG="${FNAME_MSG} + one underscore"
+        AC_DEFINE([SUNDIALS_F77_FUNC(name,NAME)],[name ## _],[])
+        F77_MANGLE_MACRO1="#define SUNDIALS_F77_FUNC(name,NAME) name ## _"
+        dgemm="dgemm_"
+        dgetrf="dgetrf_"
+      else
+        FNAME_MSG="${FNAME_MSG} + two underscores"
+        AC_DEFINE([SUNDIALS_F77_FUNC(name,NAME)],[name ## __],[])
+        F77_MANGLE_MACRO1="#define SUNDIALS_F77_FUNC(name,NAME) name ## __"
+        dgemm="dgemm__"
+        dgetrf="dgetrf__"
+      fi
+
+    else
+
+      FNAME_MSG="upper case "
+
+      if test "X${j}" = "X"; then
+        FNAME_MSG="${FNAME_MSG} + no underscore"
+        AC_DEFINE([SUNDIALS_F77_FUNC(name,NAME)],[name],[])
+        F77_MANGLE_MACRO1="#define SUNDIALS_F77_FUNC(name,NAME) NAME"
+        dgemm="DGEMM"
+        dgetrf="DGETRF"
+      elif test "X${j}" = "X_"; then
+        FNAME_MSG="${FNAME_MSG} + one underscore"
+        AC_DEFINE([SUNDIALS_F77_FUNC(name,NAME)],[name ## _],[])
+        F77_MANGLE_MACRO1="#define SUNDIALS_F77_FUNC(name,NAME) NAME ## _"
+        dgemm="DGEMM_"
+        dgetrf="DGETRF_"
+      else
+        FNAME_MSG="${FNAME_MSG} + two underscores"
+        AC_DEFINE([SUNDIALS_F77_FUNC(name,NAME)],[name ## __],[])
+        F77_MANGLE_MACRO1="#define SUNDIALS_F77_FUNC(name,NAME) NAME ## __"
+        dgemm="DGEMM__"
+        dgetrf="DGETRF__"
+      fi
+
+    fi
+
+    AC_MSG_CHECKING([for Fortran name-mangling scheme of C identifiers])
+    AC_MSG_RESULT([${FNAME_MSG}])
+
+  else
+
+    F77_OK="no"
+
+  fi
+
+  # Set LIBS environment variable back to original value
+  LIBS="${SAVED_LIBS}"
+
+  ])
+
 # Remove temporary file
 rm -f f77_wrapper_check.${ac_objext}
 
-]) dnl END SUNDIALS_SET_F77
+
+# (2) Compile a dummy Fortran subroutine named SUN_DIALS
+
+FNAME_STATUS="none"
+
+AC_COMPILE_IFELSE(
+  [AC_LANG_SOURCE(
+  [[
+	SUBROUTINE SUN_DIALS()
+	RETURN
+	END
+  ]])],
+  [
+
+  mv conftest.${ac_objext} f77_wrapper_check.${ac_objext}
+
+  # Temporarily reset LIBS environment variable to perform test
+  SAVED_LIBS="${LIBS}"
+  LIBS="f77_wrapper_check.${ac_objext} ${LIBS} ${FLIBS}"
+
+  AC_LANG_PUSH([C])
+
+  for i in "sun_dials" "SUN_DIALS"
+  do
+    for j in "" "_" "__"
+    do
+      F77_MANGLED_NAME="${i}${j}"
+      AC_LINK_IFELSE([AC_LANG_CALL([],[${F77_MANGLED_NAME}])],[FNAME_STATUS="set" ; break 2])
+    done
+  done
+
+  AC_LANG_POP([C])
+
+  # If test succeeded, then set the F77_MANGLE_MACRO2 macro
+
+  if test "X${FNAME_STATUS}" = "Xset"; then
+
+    if test "X${i}" = "Xsun_dials"; then
+
+      FNAME_MSG="lower case "
+
+      if test "X${j}" = "X"; then
+        FNAME_MSG="${FNAME_MSG} + no underscore"
+        AC_DEFINE([SUNDIALS_F77_FUNC_(name,NAME)],[name],[])
+        F77_MANGLE_MACRO2="#define SUNDIALS_F77_FUNC_(name,NAME) name"
+      elif test "X${j}" = "X_"; then
+        FNAME_MSG="${FNAME_MSG} + one underscore"
+        AC_DEFINE([SUNDIALS_F77_FUNC_(name,NAME)],[name ## _],[])
+        F77_MANGLE_MACRO2="#define SUNDIALS_F77_FUNC_(name,NAME) name ## _"
+      else
+        FNAME_MSG="${FNAME_MSG} + two underscores"
+        AC_DEFINE([SUNDIALS_F77_FUNC_(name,NAME)],[name ## __],[])
+        F77_MANGLE_MACRO2="#define SUNDIALS_F77_FUNC_(name,NAME) name ## __"
+      fi
+
+    else
+
+      FNAME_MSG="upper case "
+
+      if test "X${j}" = "X"; then
+        FNAME_MSG="${FNAME_MSG} + no underscore"
+        AC_DEFINE([SUNDIALS_F77_FUNC_(name,NAME)],[name],[])
+        F77_MANGLE_MACRO2="#define SUNDIALS_F77_FUNC_(name,NAME) NAME"
+      elif test "X${j}" = "X_"; then
+        FNAME_MSG="${FNAME_MSG} + one underscore"
+        AC_DEFINE([SUNDIALS_F77_FUNC_(name,NAME)],[name ## _],[])
+        F77_MANGLE_MACRO2="#define SUNDIALS_F77_FUNC_(name,NAME) NAME ## _"
+      else
+        FNAME_MSG="${FNAME_MSG} + two underscores"
+        AC_DEFINE([SUNDIALS_F77_FUNC_(name,NAME)],[name ## __],[])
+        F77_MANGLE_MACRO2="#define SUNDIALS_F77_FUNC_(name,NAME) NAME ## __"
+      fi
+
+    fi
+
+    AC_MSG_CHECKING([for Fortran name-mangling scheme of C identifiers with underscores])
+    AC_MSG_RESULT([${FNAME_MSG}])
+
+  else
+
+    F77_OK="no"
+
+  fi
+
+  # Set LIBS environment variable back to original value
+  LIBS="${SAVED_LIBS}"
+
+  ])
+
+# Remove temporary file
+rm -f f77_wrapper_check.${ac_objext}
+
+
+AC_LANG_POP([Fortran 77])
+
+]) dnl END SUNDIALS_SET_FNAME
+
 
 #------------------------------------------------------------------
-# DEFAULT FFLAGS
+# DETERMINE BLAS/LAPACK LIBRARY LINKAGE SCHEME
 #
-# Set default FFLAGS (called only if FFLAGS is not provided)
+# If successful, this function sets LAPACK_OK="yes".
+# Otherwise, it sets LAPACK_OK="no" 
 #------------------------------------------------------------------
 
-AC_DEFUN([SUNDIALS_DEFAULT_FFLAGS],
+AC_DEFUN([SUNDIALS_F77_LAPACK_SET],
 [
 
-# Extract executable name of Fortran compiler, for optional use below
-F77_EXEC=`basename "${F77}"`
+# Check if the user specifies Blas libraries
+AC_ARG_WITH(blas,
+[AC_HELP_STRING([--with-blas=ARG],[specify Blas library])],
+[
+  case $withval in
+    -* | */* | *.a | *.so | *.so.* | *.o) 
+        BLAS_LIBS="$withval" 
+        ;;
+    *) 
+        BLAS_LIBS="-l$withval" 
+        ;;
+  esac
+])
 
-case $host in
+# Check if the user specifies Lapack libraries
+AC_ARG_WITH(lapack,
+[AC_HELP_STRING([--with-lapack=ARG],[specify Lapack library])],
+[
+  case $withval in
+    -* | */* | *.a | *.so | *.so.* | *.o) 
+        LAPACK_LIBS="$withval" 
+        ;;
+    *) 
+        LAPACK_LIBS="-l$withval" 
+        ;;
+  esac
+])
 
-  # IA-32 system running Linux
-  i*-pc-linux-*)
-    #if test "X${G77}" = "Xyes"; then
-    #  if test "X${FLOAT_TYPE}" = "Xsingle" || test "X${FLOAT_TYPE}" = "Xdouble"; then
-    #    FFLAGS="-ffloat-store"
-    #  fi
-    #fi
-    ;;
+acx_blas_ok=no
+acx_lapack_ok=no
 
-  # SGI/IRIX
-  mips-sgi-irix*) 
-    FFLAGS="-64"
-    ;;
+# BLAS_LIBS
+# ---------
 
-  # Compaq/Tru64
-  *-dec-osf*)
-    if test "X${F77_EXEC}" = "Xf77"; then
-      FFLAGS="-O1"
-    fi
-    ;;
+acx_blas_save_LIBS="$LIBS"
+LIBS="$LIBS $FLIBS"
 
-  *)
-    FFLAGS=""
-    ;;
+# First, check BLAS_LIBS environment variable
+if test "x$BLAS_LIBS" != x; then
+  save_LIBS="$LIBS"
+  LIBS="$BLAS_LIBS $LIBS"
+  AC_MSG_CHECKING([aha for $dgemm in $BLAS_LIBS])
+  AC_TRY_LINK_FUNC($dgemm, [acx_blas_ok=yes], [BLAS_LIBS=""])
+  AC_MSG_RESULT($acx_blas_ok)
+  LIBS="$save_LIBS"
+fi
 
-esac
+# BLAS linked to by default?  (happens on some supercomputers)
+if test $acx_blas_ok = no; then
+  save_LIBS="$LIBS"; LIBS="$LIBS"
+  AC_CHECK_FUNC($dgemm, [acx_blas_ok=yes])
+  LIBS="$save_LIBS"
+fi
 
-]) dnl END SUNDIALS_DEFAULT_FFLAGS
+# BLAS in Alpha CXML library?
+if test $acx_blas_ok = no; then
+  AC_CHECK_LIB(cxml, $dgemm, [acx_blas_ok=yes;BLAS_LIBS="-lcxml"])
+fi
+
+# BLAS in Alpha DXML library? (now called CXML, see above)
+if test $acx_blas_ok = no; then
+  AC_CHECK_LIB(dxml, $dgemm, [acx_blas_ok=yes;BLAS_LIBS="-ldxml"])
+fi
+
+# BLAS in Sun Performance library?
+if test $acx_blas_ok = no; then
+  if test "x$GCC" != xyes; then # only works with Sun CC
+    AC_CHECK_LIB(sunmath, acosp,
+                 [AC_CHECK_LIB(sunperf, $dgemm,
+                               [BLAS_LIBS="-xlic_lib=sunperf -lsunmath"
+                                acx_blas_ok=yes],[],[-lsunmath])])
+  fi
+fi
+
+# BLAS in SCSL library?  (SGI/Cray Scientific Library)
+if test $acx_blas_ok = no; then
+  AC_CHECK_LIB(scs, $dgemm, [acx_blas_ok=yes; BLAS_LIBS="-lscs"])
+fi
+
+# BLAS in SGIMATH library?
+if test $acx_blas_ok = no; then
+  AC_CHECK_LIB(complib.sgimath, $dgemm,
+               [acx_blas_ok=yes; BLAS_LIBS="-lcomplib.sgimath"])
+fi
+
+# BLAS in IBM ESSL library? (requires generic BLAS lib, too)
+if test $acx_blas_ok = no; then
+ AC_CHECK_LIB(blas, $dgemm,
+              [AC_CHECK_LIB(essl, $dgemm,
+                        [acx_blas_ok=yes; BLAS_LIBS="-lessl -lblas"],
+                        [], [-lblas $FLIBS])])
+fi
+
+# Generic BLAS library?
+if test $acx_blas_ok = no; then
+  AC_CHECK_LIB(blas, $dgemm, [acx_blas_ok=yes; BLAS_LIBS="-lblas"])
+fi
+
+LIBS="$acx_blas_save_LIBS"
+
+# LAPACK
+# ------
+
+# If we didn't find a Blas implementation, disable tests for Lapack
+if test $acx_blas_ok = no; then
+  acx_lapack_ok=disabled
+fi
+
+# Check LAPACK_LIBS environment variable
+if test $acx_lapack_ok = no; then
+if test "x$LAPACK_LIBS" != x; then
+  save_LIBS="$LIBS"; 
+  LIBS="$LAPACK_LIBS $BLAS_LIBS $LIBS $FLIBS"
+  AC_MSG_CHECKING([for $dgetrf in $LAPACK_LIBS])
+  AC_TRY_LINK_FUNC($dgetrf, [acx_lapack_ok=yes], [LAPACK_LIBS=""])
+  AC_MSG_RESULT($acx_lapack_ok)
+  LIBS="$save_LIBS"
+  if test acx_lapack_ok = no; then
+     LAPACK_LIBS=""
+  fi
+fi
+fi
+
+# LAPACK linked to by default?  (is sometimes included in BLAS lib)
+if test $acx_lapack_ok = no; then
+  save_LIBS="$LIBS"
+  LIBS="$LIBS $BLAS_LIBS $FLIBS"
+  AC_CHECK_FUNC($dgetrf, [acx_lapack_ok=yes])
+  LIBS="$save_LIBS"
+fi
+
+# Generic LAPACK library?
+for lapack in lapack lapack_rs6k; do
+  if test $acx_lapack_ok = no; then
+    save_LIBS="$LIBS"
+      LIBS="$BLAS_LIBS $LIBS"
+      AC_CHECK_LIB($lapack, $dgetrf,
+                   [acx_lapack_ok=yes; LAPACK_LIBS="-l$lapack"], [], [$FLIBS])
+      LIBS="$save_LIBS"
+  fi
+done
+
+# If we have both libraries, set LAPACK_OK to yes
+# -----------------------------------------------------
+
+if test $acx_blas_ok = yes && test $acx_lapack_ok = yes; then
+  LAPACK_OK="yes"
+else
+  LAPACK_OK="no"
+fi
+
+]) dnl SUNDIALS_F77_LAPACK_SET
+
+
+
+
+
+#=================================================================#
+#                                                                 #
+#                                                                 #
+#           P A R A L L E L     S U P P O R T                     #
+#                                                                 #
+#                                                                 #
+#==================================================================
+
 
 #------------------------------------------------------------------
 # CHECK MPI-C COMPILER
@@ -1259,8 +1386,7 @@ MPI_FLAGS_OK="no"
 MPICC_COMP_GIVEN="yes"
 AC_MSG_CHECKING([if using MPI-C script])
 AC_ARG_WITH(mpicc,
-[AC_HELP_STRING([--with-mpicc[[[[=ARG]]]]],[specify MPI-C compiler to use @<:@mpicc@:>@],
-                [                                ])],
+[AC_HELP_STRING([--with-mpicc[[[[=ARG]]]]],[specify MPI-C compiler to use @<:@mpicc@:>@])],
 [
 if test "X${withval}" = "Xno"; then
   USE_MPICC_SCRIPT="no"
@@ -1290,7 +1416,7 @@ if test "X${USE_MPICC_SCRIPT}" = "Xyes"; then
 else
   MPICC_COMP="${CC}"
   MPICC="${CC}"
-  SUNDIALS_CHECK_CC_WITH_MPI
+  SUNDIALS_CC_WITH_MPI_CHECK
 fi
 
 ]) dnl END SUNDIALS_SET_MPICC
@@ -1408,7 +1534,7 @@ fi
 # TEST C COMPILER WITH MPI
 #------------------------------------------------------------------
 
-AC_DEFUN([SUNDIALS_CHECK_CC_WITH_MPI],
+AC_DEFUN([SUNDIALS_CC_WITH_MPI_CHECK],
 [
 
 # Test if we can compile MPI programs using the CC compiler
@@ -1567,10 +1693,10 @@ CPPFLAGS="${SAVED_CPPFLAGS}"
 LDFLAGS="${SAVED_LDFLAGS}"
 LIBS="${SAVED_LIBS}"
 
-]) dnl END SUNDIALS_CHECK_CC_WITH_MPI
+]) dnl END SUNDIALS_CC_WITH_MPI_CHECK
 
 #------------------------------------------------------------------
-# CHECK MPI-F77 COMPILER
+# SET MPI-F77 COMPILER
 #
 # These tests are done only if all of the following are still true:
 #  - MPI is enabled
@@ -1583,8 +1709,7 @@ AC_DEFUN([SUNDIALS_SET_MPIF77],
 
 AC_MSG_CHECKING([if using MPI-Fortran script])
 AC_ARG_WITH(mpif77,
-[AC_HELP_STRING([--with-mpif77[[[[=ARG]]]]],[specify MPI-Fortran compiler to use @<:@mpif77@:>@],
-                [                                ])],
+[AC_HELP_STRING([--with-mpif77[[[[=ARG]]]]],[specify MPI-Fortran compiler to use @<:@mpif77@:>@])],
 [
 if test "X${withval}" = "Xno"; then
   USE_MPIF77_SCRIPT="no"
@@ -1605,139 +1730,13 @@ if test "X${USE_MPIF77_SCRIPT}" = "Xyes"; then
 else
   MPIF77_COMP="${F77}"
   MPIF77="${F77}"
-  SUNDIALS_CHECK_F77_WITH_MPI
+  SUNDIALS_F77_WITH_MPI_CHECK
 fi
 
 ]) dnl END SUNDIALS_SET_MPIF77
 
 #------------------------------------------------------------------
-# DETERMINE MPI-FORTRAN LINKER
-#------------------------------------------------------------------
-
-AC_DEFUN([SUNDIALS_MPIF77_LNKR_CHECK],
-[
-
-# If we are NOT using an MPI script, then MPICC_COMP == CC and we do NOT need
-# to check again if CC is a C++ compiler as we already know the answer
-if test "X${USE_MPICC_SCRIPT}" = "Xyes"; then
-
-  # Check if using a C++ compiler (meaning MPI-C++ script)
-  # Save result from CC check
-  SAVED_USING_CPLUSPLUS_COMP="${USING_CPLUSPLUS_COMP}"
-  SUNDIALS_CPLUSPLUS_CHECK([${MPICC_COMP}])
-  # MPICC uses a C++ compiler so run the next test
-  if test "X${USING_CPLUSPLUS_COMP}" = "Xyes" && test "X${SAVED_USING_CPLUSPLUS_COMP}" = "Xyes"; then
-    RUN_MPIF77_LNKR_CHECK="yes"
-  # ERROR
-  elif test "X${USING_CPLUSPLUS_COMP}" = "Xyes" && test "X${SAVED_USING_CPLUSPLUS_COMP}" = "Xno"; then
-    AC_MSG_ERROR([${MPICC_COMP} is a C++ compiler but ${CC} is a C compiler])
-  # MPICC uses a C compiler so skip the next test
-  elif test "X${USING_CPLUSPLUS_COMP}" = "Xno" && test "X${SAVED_USING_CPLUSPLUS_COMP}" = "Xno" ; then
-    RUN_MPIF77_LNKR_CHECK="no"
-  # ERROR
-  elif test "X${USING_CPLUSPLUS_COMP}" = "Xno" && test "X${SAVED_USING_CPLUSPLUS_COMP}" = "Xyes" ; then
-    AC_MSG_ERROR([${MPICC_COMP} is a C compiler but ${CC} is a C++ compiler])
-  fi
-  # Restore result from CC check
-  USING_CPLUSPLUS_COMP="${SAVED_USING_CPLUSPLUS_COMP}"
-
-else
-
-  AC_MSG_CHECKING([if ${MPICC_COMP} is a C++ compiler])
-  if test "X${USING_CPLUSPLUS_COMP}" = "Xyes"; then
-    AC_MSG_RESULT([yes])
-  else
-    AC_MSG_RESULT([no])
-  fi
-
-fi
-
-AC_MSG_CHECKING([which linker to use])
-# Perform the next test only if using a C++ compiler to build NVECTOR_PARALLEL
-if test "X${RUN_MPIF77_LNKR_CHECK}" = "Xyes"; then
-
-  # Switch language to "Fortran 77"
-  AC_LANG_PUSH([Fortran 77])
-
-  # Temporarily reset F77 environment variable to perform test
-  SAVED_F77="${F77}"
-  F77="${MPIF77_COMP}"
-
-  # Compile simple Fortran example, but do NOT link
-  # Note: result stored as conftest.${ac_objext}
-  AC_COMPILE_IFELSE(
-  [AC_LANG_SOURCE(
-  [[
-	PROGRAM SUNDIALS
-	INTEGER IER
-	CALL MPI_INIT(IER)
-	END
-  ]])],
-  [
-
-  # Reset F77 to original value
-  F77="${SAVED_F77}"
-
-  # Revert to previous language
-  AC_LANG_POP([Fortran 77])
-
-  # Temporarily reset LIBS environment variable to perform test
-  SAVED_LIBS="${LIBS}"
-  LIBS="${LIBS} ${FLIBS}"
-
-  # Switch working language to C for next test
-  AC_LANG_PUSH([C])
-
-  # Temporarily reset CC environment variable to perform next test
-  SAVED_CC="${CC}"
-  CC="${MPICC_COMP}"
-
-  # Check if MPICC_COMP can link Fortran example
-  # Note: AC_LINKONLY_IFELSE is a custom macro (modifications made to
-  # general.m4 and c.m4)
-  AC_LINKONLY_IFELSE([],[MPIF77_LNKR_CHECK_OK="yes"],[MPIF77_LNKR_CHECK_OK="no"])
-
-  # Reset CC to original value
-  CC="${SAVED_CC}"
-
-  # Revert back to previous language (Fortran 77)
-  AC_LANG_POP([C])
-
-  # Set LIBS environment variable back to original value
-  LIBS="${SAVED_LIBS}"
-
-  # Note: MPIF77_LNKR variable is used by parallel Fortran example Makefile's
-  if test "X${MPIF77_LNKR_CHECK_OK}" = "Xyes"; then
-    MPIF77_LNKR="\$(MPICC)"
-    MPIF77_LNKR_OUT="${MPICC}"
-  else
-    MPIF77_LNKR="\$(MPIF77)"
-    MPIF77_LNKR_OUT="${MPIF77}"
-  fi
-
-  ],
-  [
-
-  # If compilation fails, then just use MPIF77
-  MPIF77_LNKR="\$(MPIF77)"
-  MPIF77_LNKR_OUT="${MPIF77}"
-
-  ])
-
-else
-
-  # Using a C compiler so use MPIF77 to link parallel Fortran examples
-  MPIF77_LNKR="\$(MPIF77)"
-  MPIF77_LNKR_OUT="${MPIF77}"
-
-fi
-AC_MSG_RESULT([${MPIF77_LNKR_OUT}])
-
-
-]) dnl SUNDIALS_MPIF77_LNKR_CHECK
-
-#------------------------------------------------------------------
-# TEST MPI-FORTRAN COMPILER
+# TEST MPIF77 COMPILER SCRIPT
 #------------------------------------------------------------------
 
 AC_DEFUN([SUNDIALS_CHECK_MPIF77],
@@ -1835,10 +1834,131 @@ fi
 ]) dnl END SUNDIALS_CHECK_MPIF77
 
 #------------------------------------------------------------------
+# DETERMINE MPI-FORTRAN LINKER IF USING MPIF77 SCRIPT
+#------------------------------------------------------------------
+
+AC_DEFUN([SUNDIALS_MPIF77_LNKR_CHECK],
+[
+
+# If we are NOT using an MPI script, then MPICC_COMP == CC and we do NOT need
+# to check again if CC is a C++ compiler as we already know the answer
+if test "X${USE_MPICC_SCRIPT}" = "Xyes"; then
+
+  # Check if using a C++ compiler (meaning MPI-C++ script)
+  # Save result from CC check
+  SAVED_USING_CPLUSPLUS_COMP="${USING_CPLUSPLUS_COMP}"
+  SUNDIALS_CPLUSPLUS_CHECK([${MPICC_COMP}])
+  # MPICC uses a C++ compiler so run the next test
+  if test "X${USING_CPLUSPLUS_COMP}" = "Xyes" && test "X${SAVED_USING_CPLUSPLUS_COMP}" = "Xyes"; then
+    RUN_MPIF77_LNKR_CHECK="yes"
+  # ERROR
+  elif test "X${USING_CPLUSPLUS_COMP}" = "Xyes" && test "X${SAVED_USING_CPLUSPLUS_COMP}" = "Xno"; then
+    AC_MSG_ERROR([${MPICC_COMP} is a C++ compiler but ${CC} is a C compiler])
+  # MPICC uses a C compiler so skip the next test
+  elif test "X${USING_CPLUSPLUS_COMP}" = "Xno" && test "X${SAVED_USING_CPLUSPLUS_COMP}" = "Xno" ; then
+    RUN_MPIF77_LNKR_CHECK="no"
+  # ERROR
+  elif test "X${USING_CPLUSPLUS_COMP}" = "Xno" && test "X${SAVED_USING_CPLUSPLUS_COMP}" = "Xyes" ; then
+    AC_MSG_ERROR([${MPICC_COMP} is a C compiler but ${CC} is a C++ compiler])
+  fi
+  # Restore result from CC check
+  USING_CPLUSPLUS_COMP="${SAVED_USING_CPLUSPLUS_COMP}"
+
+else
+
+  AC_MSG_CHECKING([if ${MPICC_COMP} is a C++ compiler])
+  if test "X${USING_CPLUSPLUS_COMP}" = "Xyes"; then
+    AC_MSG_RESULT([yes])
+  else
+    AC_MSG_RESULT([no])
+  fi
+
+fi
+
+AC_MSG_CHECKING([which linker to use])
+# Perform the next test only if using a C++ compiler to build NVECTOR_PARALLEL
+if test "X${RUN_MPIF77_LNKR_CHECK}" = "Xyes"; then
+
+  MPIF77_LNKR_CHECK_OK="no"
+
+  # Switch language to "Fortran 77"
+  AC_LANG_PUSH([Fortran 77])
+
+  # Temporarily reset F77 environment variable to perform test
+  SAVED_F77="${F77}"
+  F77="${MPIF77_COMP}"
+
+  # Compile simple Fortran example, but do NOT link
+  # Note: result stored as conftest.${ac_objext}
+  AC_COMPILE_IFELSE(
+  [AC_LANG_SOURCE(
+  [[
+	PROGRAM SUNDIALS
+	INTEGER IER
+	CALL MPI_INIT(IER)
+	END
+  ]])],
+  [
+
+  # Reset F77 to original value
+  F77="${SAVED_F77}"
+
+  # Revert to previous language
+  AC_LANG_POP([Fortran 77])
+
+  # Temporarily reset LIBS environment variable to perform test
+  SAVED_LIBS="${LIBS}"
+  LIBS="${LIBS} ${FLIBS}"
+
+  # Switch working language to C for next test
+  AC_LANG_PUSH([C])
+
+  # Temporarily reset CC environment variable to perform next test
+  SAVED_CC="${CC}"
+  CC="${MPICC_COMP}"
+
+  # Check if MPICC_COMP can link Fortran example
+  # Note: AC_LINKONLY_IFELSE is a custom macro (modifications made to
+  # general.m4 and c.m4)
+  AC_LINKONLY_IFELSE([],[MPIF77_LNKR_CHECK_OK="yes"],[MPIF77_LNKR_CHECK_OK="no"])
+
+  # Reset CC to original value
+  CC="${SAVED_CC}"
+
+  # Revert back to previous language (Fortran 77)
+  AC_LANG_POP([C])
+
+  # Set LIBS environment variable back to original value
+  LIBS="${SAVED_LIBS}"
+
+  ])
+
+  # If either the compilation or the linking failed, we should
+  # disable building the parallel Fortran examples
+  # For now, use MPIF77 as the linker...
+
+  if test "X${MPIF77_LNKR_CHECK_OK}" = "Xyes"; then
+    MPIF77_LNKR="${MPICC}"
+  else
+    MPIF77_LNKR="${MPIF77}"
+  fi
+
+else
+
+  # Using a C compiler so use MPIF77 to link parallel Fortran examples
+  MPIF77_LNKR="${MPIF77}"
+
+fi
+AC_MSG_RESULT([${MPIF77_LNKR}])
+
+
+]) dnl SUNDIALS_MPIF77_LNKR_CHECK
+
+#------------------------------------------------------------------
 # TEST FORTRAN COMPILER WITH MPI
 #------------------------------------------------------------------
 
-AC_DEFUN([SUNDIALS_CHECK_F77_WITH_MPI],
+AC_DEFUN([SUNDIALS_F77_WITH_MPI_CHECK],
 [
 
 # Test if we can compile MPI programs using the F77 compiler
@@ -1855,7 +1975,7 @@ SAVED_LDFLAGS="${LDFLAGS}"
 SAVED_LIBS="${LIBS}"
 
 # This may seem redundant, but we are not guaranteed that
-# SUNDIALS_CHECK_CC_WITH_MPI has been executed
+# SUNDIALS_CC_WITH_MPI_CHECK has been executed
 # Determine location of MPI header files (find MPI include directory)
 MPI_EXISTS="yes"
 
@@ -1987,14 +2107,12 @@ if test "X${MPI_EXISTS}" = "Xyes"; then
     # since the SUNDIALS_F77_LNKR_CHECK macro already checked if CC or F77
     # should be used
     AC_MSG_CHECKING([which linker to use])
-    if test "X${F77_LNKR}" = "X\$(CC)"; then
-      MPIF77_LNKR="\$(MPICC)"
-      MPIF77_LNKR_OUT="${MPICC}"
-    elif test "X${F77_LNKR}" = "X\$(F77)"; then
-      MPIF77_LNKR="\$(MPIF77)"
-      MPIF77_LNKR_OUT="${MPIF77}"
+    if test "X${F77_LNKR}" = "X${CC}"; then
+      MPIF77_LNKR="${MPICC}"
+    elif test "X${F77_LNKR}" = "X${F77}"; then
+      MPIF77_LNKR="${MPIF77}"
     fi
-    AC_MSG_RESULT([${MPIF77_LNKR_OUT}])
+    AC_MSG_RESULT([${MPIF77_LNKR}])
   fi
 
 else
@@ -2008,7 +2126,7 @@ LIBS="${SAVED_LIBS}"
 
 AC_LANG_POP([Fortran 77])
 
-]) dnl END SUNDIALS_CHECK_F77_WITH_MPI
+]) dnl END SUNDIALS_F77_WITH_MPI_CHECK
 
 #------------------------------------------------------------------
 # TEST MPI-2 FUNCTIONALITY
@@ -2026,9 +2144,6 @@ AC_DEFUN([SUNDIALS_CHECK_MPI2],
 #   (2) YES : FNVECTOR_PARALLEL module will allow user to specify
 #             an MPI communicator
 #
-# Test for MPI_Comm_spawn() funciton:
-#   (1) NO  : sundialsTB will NOT provide parallel support
-#   (2) YES : sundialsTB will be confoigured with parallel support
  
 # Provide variable description templates for config.hin and config.h files
 # Required by autoheader utility
@@ -2158,26 +2273,6 @@ if test "X${MPI_EXISTS}" = "Xyes"; then
      F77_MPI_COMM_F2C="#define SUNDIALS_MPI_COMM_F2C 0"])
   fi
 
-  # Check if MPI implementation supports MPI_Comm_spawn() from
-  # MPI-2 specification
-  if test "X${STB_ENABLED}" = "Xyes"; then
-    AC_MSG_CHECKING([for MPI_Comm_spawn() from MPI-2 specification])
-    AC_LINK_IFELSE(
-    [AC_LANG_PROGRAM([[#include "mpi.h"]],
-    [[
-        int c;
-        char **v;
-        MPI_Info info;
-        MPI_Comm comm;
-        MPI_Init(&c, &v);
-        c = MPI_Comm_spawn(*v, v, c, info, c, comm, &comm, &c);
-        MPI_Finalize();
-    ]])],
-    [STB_PARALLEL_OK="yes"],
-    [STB_PARALLEL_OK="no"])
-     AC_MSG_RESULT([${STB_PARALLEL_OK}])
-  fi
-
   # Reset CC if necessary
   if test "X${USE_MPICC_SCRIPT}" = "Xyes"; then
     CC="${SAVED_CC}"
@@ -2195,248 +2290,17 @@ LIBS="${SAVED_LIBS}"
 
 ]) dnl END SUNDIALS_CHECK_MPI2
 
-#------------------------------------------------------------------
-# CHECK MATLAB
-#------------------------------------------------------------------
 
-AC_DEFUN([SUNDIALS_SET_MATLAB],
-[
 
-AC_REQUIRE([AC_CANONICAL_HOST])
 
-# Set the STB_OS variable, depending on the build OS
-case $build_os in
-  *cygwin*)
-    STB_OS="cygwin"
-    ;;
-  *mingw*)
-    STB_OS="mingw"
-    ;;
-  *) 
-    STB_OS="other"
-    ;;
-esac
+#=================================================================#
+#                                                                 #
+#                                                                 #
+#                   F I N A L I Z A T I O N S                     #
+#                                                                 #
+#                                                                 #
+#==================================================================
 
-# Under cygwin, check if CFLGAGS contains -mno-cygwin 
-if test "X${STB_OS}" = "Xcygwin"; then
-  AC_MSG_CHECKING([if CFLAGS contains -mno-cygwin])
-  cv_no_cygwin_exists="no"
-  for i in ${CFLAGS}
-  do
-    if test "X${i}" = "X-mno-cygwin"; then
-      cv_no_cygwin_exists="yes"
-    fi
-  done
-  AC_MSG_RESULT([${cv_no_cygwin_exists}])
-  if test "X${cv_no_cygwin_exists}" = "Xno"; then
-    AC_MSG_WARN([compilation of sundialsTB mex files may fail])
-    echo ""
-    echo "   Building under CYGWIN without -mno-cygwin"
-    echo ""
-    echo "   Beware that compilation of the sundialsTB mex files may fail."
-    echo ""
-    SUNDIALS_WARN_FLAG="yes"
-  fi 
-fi
-
-AC_ARG_WITH([],[      ],[])
-
-# Find Matlab program. If --with-matlab=<matlab> was passed to the configure 
-# script, then we only check if it exists and is an executable file. We'll try
-# to run it later... Otherwise, use AC_PATH_PROG to search for matlab.
-MATLAB_CMD="none"
-AC_ARG_WITH([matlab], 
-[AC_HELP_STRING([--with-matlab=MATLAB], [specify Matlab executable])],
-[
-AC_MSG_CHECKING([for matlab])
-if test -f ${withval} ; then
-  AC_MSG_RESULT([${withval}])
-  MATLAB_CMD="${withval}"
-else
-  AC_MSG_RESULT([none])
-  AC_MSG_WARN([invalid value '${withval}' for --with-matlab])
-  echo ""
-  echo "   ${withval} does not exist"
-  echo ""
-  echo "   Disabling compilation of sundialsTB mex files..."
-  echo ""
-  SUNDIALS_WARN_FLAG="yes"
-  STB_ENABLED="no"
-fi
-],
-[
-AC_PATH_PROG(MATLAB_CMD, matlab, "none")
-if test "X${MATLAB_CMD}" = "Xnone"; then
-  STB_ENABLED="no"
-fi
-])
-
-MATLAB_CMD_FLAGS="-nojvm -nosplash"
-
-# Set MEXOPTS (MEX options file)
-if test "X${STB_ENABLED}" = "Xyes"; then
-
-  MEXOPTS=""
-  AC_ARG_WITH([mexopts], 
-  AC_HELP_STRING([--with-mexopts=ARG], [use MEX options file ARG [[standard]]]),
-  [
-  cv_mexopts_file="${withval}"
-  if test -f ${cv_mexopts_file} ; then
-    cv_mexopts_dir=`AS_DIRNAME(["${cv_mexopts_file}"])`
-    # MEX options file is located under the current working directory
-    if test "X${cv_mexopts_dir}" = "X${cv_mexopts_file}"; then
-      cv_mexopts_dir="."
-      cv_mexopts_name="${cv_mexopts_file}"
-      cv_mexopts_file="${cv_mexopts_dir}/${cv_mexopts_name}"
-    fi
-    MEXOPTS="-f ${cv_mexopts_file}"
-  else
-    AC_MSG_WARN([invalid value '${cv_mexopts_file}' for --with-mexopts])
-    echo ""
-    echo "   ${cv_mexopts_file} does not exist"
-    echo ""
-    echo "   Disabling compilation of sundialsTB mex files..."
-    echo ""
-    SUNDIALS_WARN_FLAG="yes"
-    STB_ENABLED="no"
-  fi
-  ])
-
-fi
-
-# Set MEXFLAGS and MEXLDADD
-if test "X${STB_ENABLED}" = "Xyes"; then
-
-  AC_MSG_CHECKING([for MEX compiler compiler flags])
-  AC_ARG_WITH([mexflags], 
-  [AC_HELP_STRING([--with-mexflags=ARG], [specify MEX compiler flags])],
-  [
-  AC_MSG_RESULT([${withval}])
-  MEXFLAGS="${withval}"
-  ],
-  [
-  # If MEXFLAGS is not defined, set it to the default -O
-  if test "X${MEXFLAGS}" = "X"; then
-    MEXFLAGS="-O"
-  fi
-  AC_MSG_RESULT([${MEXFLAGS}])
-  ])
-
-  AC_MSG_CHECKING([for additional MEX linker flags])
-  AC_ARG_WITH([mexldadd], 
-  [AC_HELP_STRING([--with-mexldadd=ARG], [specify additional MEX linker flags])],
-  [
-  AC_MSG_RESULT([${withval}])
-  MEXLDADD="${withval}"
-  ],
-  [
-  # If MEXLDADD is not defined, none are used
-  if test "X${MEXLDADD}" = "X"; then
-    MEXLDADD=""
-    AC_MSG_RESULT([none])
-  else
-    AC_MSG_RESULT([${MEXLDADD}])
-  fi
-  ])
-
-fi
-
-# Run matlab and try the MEX compiler. Set extension for MEX files (set MEXEXT)
-if test "X${STB_ENABLED}" = "Xyes"; then
-
-  AC_MSG_CHECKING([if the Matlab MEX compiler works])
-
-  # Create test file cvmextest.c (temporary file)
-  cat > cvmextest.c <<_END_MEX_C
-#include "mex.h"
-void mexFunction(int nlhs, mxArray **plhs, int nrhs, const mxArray **prhs)
-{}
-_END_MEX_C
-
-  # Create test file cvmextest_script.m (temporary file)
-  cat > cvmextest_script.m <<_END_MEX_M
-mex ${MEXOPTS} ${MEXFLAGS} -output cvmextest cvmextest.c ${MEXLDADD}
-exit
-_END_MEX_M
-
-  # Run matlab in batch mode
-  # Warning: File descriptors and I/O redirection can be problematic
-  ( eval ${MATLAB_CMD} ${MATLAB_CMD_FLAGS} -r cvmextest_script ) 2>/dev/null 1>&2
-
-  # Get exit status of previous command (meaning eval statement)
-  cv_status=$?
-
-  # MEX test succeeded
-  if test "${cv_status}" = "0"; then
-     AC_MSG_RESULT([yes])
-     AC_MSG_CHECKING([for MEX file extension])
-     if test -f cvmextest.dll ; then
-        MEXEXT="dll"
-     elif test -f cvmextest.mex ; then
-        MEXEXT="mex"
-     elif test -f cvmextest.mexaxp ; then
-        MEXEXT="mexaxp"
-     elif test -f cvmextest.mexglx ; then
-        MEXEXT="mexglx"
-     elif test -f cvmextest.mexhp7 ; then
-        MEXEXT="mexhp7"
-     elif test -f cvmextest.mexhpux ; then
-        MEXEXT="mexhpux"
-     elif test -f cvmextest.mexrs6 ; then
-        MEXEXT="mexrs6"
-     elif test -f cvmextest.mexsg ; then
-        MEXEXT="mexsg"
-     elif test -f cvmextest.mexsol ; then
-        MEXEXT="mexsol"
-     else
-	MEXEXT=""
-     fi
-     AC_MSG_RESULT([${MEXEXT}])
-  # MEX test failed
-  else 
-     AC_MSG_RESULT([no])
-     STB_ENABLED="no"
-  fi
-
-  # Remove temporary files
-  rm -f cvmextest*
-
-fi
-
-# Determine where to install sundialsTB
-if test "X${STB_ENABLED}" = "Xyes"; then
-
-  AC_ARG_WITH([],[           ],[])
-  AC_MSG_CHECKING([where to install sundialsTB])
-  AC_ARG_WITH([sundialsTB-instdir],
-  [AC_HELP_STRING([--with-sundialsTB-instdir=STBINSTDIR], [install sundialsTB in STBINSTDIR @<:@MATLAB/toolbox@:>@])],
-  [
-    STB_INSTDIR="${withval}"
-  ],
-  [
-    if test "X${MATLAB}" = "X"; then
-      STB_INSTDIR="no"
-    else
-      STB_INSTDIR="${MATLAB}/toolbox/sundialsTB"
-    fi
-  ])
-
-  # Set STB_PATH (usually same as STB_INSTDIR)
-  if test "X${STB_OS}" = "Xcygwin"; then
-    STB_PATH=`cygpath -a -m "${STB_INSTDIR}"`
-  elif test "X${STB_OS}" = "Xmingw"; then
-    STB_PATH=`cd "${STB_INSTDIR}" > /dev/null 2>&1 && pwd -W`
-  else
-    STB_PATH="${STB_INSTDIR}"
-  fi
-
-  AC_MSG_RESULT([${STB_PATH}])
-
-fi
-
-AC_ARG_WITH([],[        ],[])
-
-]) dnl END SUNDIALS_SET_MEX
 
 #------------------------------------------------------------------
 # ADD SOME MORE STUFF TO configure --help
@@ -2447,10 +2311,10 @@ AC_DEFUN([SUNDIALS_MORE_HELP],
 
 AC_ARG_WITH([],[          ],[])
 AC_ARG_WITH([],[NOTES],[])
-AC_ARG_WITH([],[  Both --with-examples-instdir and --with-sundialsTB-instdir can be set to "no",],[])
-AC_ARG_WITH([],[  in which case the examples and sundialsTB, respectively, are built but not installed.],[])
+AC_ARG_WITH([],[  It is legal to set --with-exinstdir to "no", in which case the examples],[])
+AC_ARG_WITH([],[  are built but not installed.],[])
 AC_ARG_WITH([],[  Enabling the compilation of the examples (--enable-examples) but disabling their],[])
-AC_ARG_WITH([],[  installation (--with-examples-instdir=no) can be used to test the SUNDIALS libraries.],[])
+AC_ARG_WITH([],[  installation (--with-exinstdir=no) can be used to test the SUNDIALS libraries.],[])
 
 ]) dnl END SUNDIALS_MORE_HELP
 
@@ -2514,7 +2378,7 @@ AC_MSG_RESULT([${SERIAL_F77_EXAMPLES}])
 AC_MSG_CHECKING([if we can build parallel Fortran examples])
 AC_MSG_RESULT([${PARALLEL_F77_EXAMPLES}])
 
-# Check if the Fortran update script (config/fortran_update.in) is needed
+# Check if the Fortran update script (bin/fortran-update.in) is needed
 if test "X${SERIAL_F77_EXAMPLES}" = "Xyes" || test "X${PARALLEL_F77_EXAMPLES}" = "Xyes"; then
   BUILD_F77_UPDATE_SCRIPT="yes";
 else
@@ -2522,10 +2386,11 @@ else
 fi
 
 # Where should we install the examples?
+# Note: setting this to "no" will disable example installation!
 AC_MSG_CHECKING([where to install the SUNDIALS examples])
 AC_ARG_WITH([],[   ],[])
-AC_ARG_WITH([examples-instdir],
-[AC_HELP_STRING([--with-examples-instdir=EXINSTDIR], [install SUNDIALS examples in EXINSTDIR @<:@EPREFIX/examples@:>@])],
+AC_ARG_WITH([exinstdir],
+[AC_HELP_STRING([--with-exinstdir=DIR], [install SUNDIALS examples in DIR @<:@EPREFIX/examples@:>@])],
 [
   EXS_INSTDIR="${withval}"
 ],
@@ -2542,28 +2407,16 @@ AC_ARG_WITH([examples-instdir],
 ])
 AC_MSG_RESULT([${EXS_INSTDIR}])
 
-# Development examples are disabled
-SERIAL_DEV_C_EXAMPLES="disabled"
-PARALLEL_DEV_C_EXAMPLES="disabled"
-SERIAL_DEV_F77_EXAMPLES="disabled"
-PARALLEL_DEV_F77_EXAMPLES="disabled"
+# Prepare substitution variables to create the exported example Makefiles
+
+F77_LIBS="${FLIBS} ${LIBS}"
+if test "X${F77_LNKR}" = "X${F77}"; then
+  F77_LDFLAGS="${FFLAGS} ${LDFLAGS}"
+else
+  F77_LDFLAGS="${CFLAGS} ${LDFLAGS}"
+fi
 
 ]) dnl END SUNDIALS_SET_EXAMPLES
-
-#------------------------------------------------------------------
-# SET DEVELOPER EXAMPLES
-#------------------------------------------------------------------
-
-AC_DEFUN([SUNDIALS_SET_DEV_EXAMPLES],
-[
-
-DEV_EXAMPLES_ENABLED="${EXAMPLES_ENABLED}"
-SERIAL_DEV_C_EXAMPLES="${SERIAL_C_EXAMPLES}"
-PARALLEL_DEV_C_EXAMPLES="${PARALLEL_C_EXAMPLES}"
-SERIAL_DEV_F77_EXAMPLES="${SERIAL_F77_EXAMPLES}"
-PARALLEL_DEV_F77_EXAMPLES="${PARALEL_F77_EXAMPLES}"
-
-]) dnl END SUNDIALS_SET_DEV_EXAMPLES
 
 #------------------------------------------------------------------
 # BUILD MODULES LIST
@@ -2576,19 +2429,14 @@ AC_DEFUN([SUNDIALS_BUILD_MODULES_LIST],
 SUNDIALS_MAKEFILES="Makefile"
 
 # Initialize list of additional configure files to be created
-SUNDIALS_CONFIGFILES="src/sundials/sundials_config.h:src/sundials/sundials_config.in"
-SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} sundials-config:config/sundials-config.in"
+SUNDIALS_CONFIGFILES="include/sundials/sundials_config.h:include/sundials/sundials_config.in"
+SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} bin/sundials-config:bin/sundials-config.in"
 
-# Initialize lists of solver modules, example modules, and sundialsTB modules
+# Initialize lists of solver modules and example modules
 SLV_MODULES="src/sundials"
-if test "X${SUNDIALS_DEV}" = "Xyes" && test -f ${srcdir}/src/sundials/Makefile.dev.in ; then
-  SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} src/sundials/Makefile:src/sundials/Makefile.dev.in"
-else
-  SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} src/sundials/Makefile"
-fi
+SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} src/sundials/Makefile"
 
 EXS_MODULES=""
-STB_MODULES=""
 
 # NVECTOR modules
 if test -d ${srcdir}/src/nvec_ser ; then
@@ -2620,31 +2468,25 @@ if test "X${CVODE_ENABLED}" = "Xyes"; then
   if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvode/serial ; then
     EXS_MODULES="${EXS_MODULES} examples/cvode/serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvode/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvode/serial/Makefile_ex:examples/templates/makefile_serial_C_ex.in"
   fi
 
   if test "X${SERIAL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvode/fcmix_serial ; then
     EXS_MODULES="${EXS_MODULES} examples/cvode/fcmix_serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvode/fcmix_serial/Makefile"
-  fi
-
-  if test "X${SERIAL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/cvode/serial ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/cvode/serial"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/cvode/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvode/fcmix_serial/Makefile_ex:examples/templates/makefile_serial_F77_ex.in"
   fi
 
   if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvode/parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/cvode/parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvode/parallel/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvode/parallel/Makefile_ex:examples/templates/makefile_parallel_C_ex.in"
   fi
 
   if test "X${PARALLEL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvode/fcmix_parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/cvode/fcmix_parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvode/fcmix_parallel/Makefile"
-  fi
-
-  if test "X${PARALLEL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/cvode/parallel ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/cvode/parallel"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/cvode/parallel/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvode/fcmix_parallel/Makefile_ex:examples/templates/makefile_parallel_F77_ex.in"
   fi
 
 fi
@@ -2658,21 +2500,13 @@ if test "X${CVODES_ENABLED}" = "Xyes"; then
   if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvodes/serial ; then
     EXS_MODULES="${EXS_MODULES} examples/cvodes/serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvodes/serial/Makefile"
-  fi
-
-  if test "X${SERIAL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/cvodes/serial ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/cvodes/serial"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/cvodes/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvodes/serial/Makefile_ex:examples/templates/makefile_serial_C_ex.in"
   fi
 
   if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvodes/parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/cvodes/parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvodes/parallel/Makefile"
-  fi
-
-  if test "X${PARALLEL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/cvodes/parallel ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/cvodes/parallel"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/cvodes/parallel/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cvodes/parallel/Makefile_ex:examples/templates/makefile_parallel_C_ex.in"
   fi
 
 fi
@@ -2691,31 +2525,25 @@ if test "X${IDA_ENABLED}" = "Xyes"; then
   if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/ida/serial ; then
     EXS_MODULES="${EXS_MODULES} examples/ida/serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/ida/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/ida/serial/Makefile_ex:examples/templates/makefile_serial_C_ex.in"
   fi
 
   if test "X${SERIAL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/ida/fcmix_serial ; then
     EXS_MODULES="${EXS_MODULES} examples/ida/fcmix_serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/ida/fcmix_serial/Makefile"
-  fi
-
-  if test "X${SERIAL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/ida/serial ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/ida/serial"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/ida/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/ida/fcmix_serial/Makefile_ex:examples/templates/makefile_serial_F77_ex.in"
   fi
 
   if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/ida/parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/ida/parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/ida/parallel/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/ida/parallel/Makefile_ex:examples/templates/makefile_parallel_C_ex.in"
   fi
 
   if test "X${PARALLEL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/ida/fcmix_parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/ida/fcmix_parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/ida/fcmix_parallel/Makefile"
-  fi
-
-  if test "X${PARALLEL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/ida/parallel ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/ida/parallel"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/ida/parallel/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/ida/fcmix_parallel/Makefile_ex:examples/templates/makefile_parallel_F77_ex.in"
   fi
 
 fi
@@ -2729,21 +2557,13 @@ if test "X${IDAS_ENABLED}" = "Xyes"; then
   if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/idas/serial ; then
     EXS_MODULES="${EXS_MODULES} examples/idas/serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/idas/serial/Makefile"
-  fi
-
-  if test "X${SERIAL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/idas/serial ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/idas/serial"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/idas/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/idas/serial/Makefile_ex:examples/templates/makefile_serial_C_ex.in"
   fi
 
   if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/idas/parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/idas/parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/idas/parallel/Makefile"
-  fi
-
-  if test "X${PARALLEL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/idas/parallel ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/idas/parallel"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/idas/parallel/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/idas/parallel/Makefile_ex:examples/templates/makefile_parallel_C_ex.in"
   fi
 
 fi
@@ -2762,31 +2582,25 @@ if test "X${KINSOL_ENABLED}" = "Xyes"; then
   if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/kinsol/serial ; then
     EXS_MODULES="${EXS_MODULES} examples/kinsol/serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/kinsol/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/kinsol/serial/Makefile_ex:examples/templates/makefile_serial_C_ex.in"
   fi
 
   if test "X${SERIAL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/kinsol/fcmix_serial ; then
     EXS_MODULES="${EXS_MODULES} examples/kinsol/fcmix_serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/kinsol/fcmix_serial/Makefile"
-  fi
-
-  if test "X${SERIAL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/kinsol/serial ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/kinsol/serial"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/kinsol/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/kinsol/fcmix_serial/Makefile_ex:examples/templates/makefile_serial_F77_ex.in"
   fi
 
   if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/kinsol/parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/kinsol/parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/kinsol/parallel/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/kinsol/parallel/Makefile_ex:examples/templates/makefile_parallel_C_ex.in"
   fi
 
   if test "X${PARALLEL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/kinsol/fcmix_parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/kinsol/fcmix_parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/kinsol/fcmix_parallel/Makefile"
-  fi
-
-  if test "X${PARALLEL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/kinsol/parallel ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/kinsol/parallel"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} "
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/kinsol/fcmix_parallel/Makefile_ex:examples/templates/makefile_parallel_F77_ex.in"
   fi
 
 fi
@@ -2800,60 +2614,444 @@ if test "X${CPODES_ENABLED}" = "Xyes"; then
   if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cpodes/serial ; then
     EXS_MODULES="${EXS_MODULES} examples/cpodes/serial"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cpodes/serial/Makefile"
-  fi
-
-  if test "X${SERIAL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/cpodes/serial ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/cpodes/serial"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/cpodes/serial/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cpodes/serial/Makefile_ex:examples/templates/makefile_serial_C_ex.in"
   fi
 
   if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cpodes/parallel ; then
     EXS_MODULES="${EXS_MODULES} examples/cpodes/parallel"
     SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cpodes/parallel/Makefile"
-  fi
-
-  if test "X${PARALLEL_DEV_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/test_examples/cpodes/parallel ; then
-    EXS_MODULES="${EXS_MODULES} test_examples/cpodes/parallel"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} test_examples/cpodes/parallel/Makefile"
+    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} examples/cpodes/parallel/Makefile_ex:examples/templates/makefile_parallel_C_ex.in"
   fi
 
 fi
 
 # Add Fortran update script to the list of additional files to be generated
 if test "X${BUILD_F77_UPDATE_SCRIPT}" = "Xyes"; then
-  SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} examples/fortran_update.sh:config/fortran_update.in"
+  SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} bin/fortran-update.sh:bin/fortran-update.in"
 fi
 
-# sundialsTB modules
-if test "X${STB_ENABLED}" = "Xyes"; then
-
-  if test "X${CVODES_ENABLED}" = "Xyes" || test "X${IDA_ENABLED}" = "Xyes" || test "X${KINSOL_ENABLED}" = "Xyes"; then
-    SLV_MODULES="${SLV_MODULES} sundialsTB"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} sundialsTB/Makefile:sundialsTB/Makefile.in"
-    SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} sundialsTB/startup_STB.m:sundialsTB/startup_STB.in"
-  fi
-
-  if test "X${CVODES_ENABLED}" = "Xyes"; then
-    STB_MODULES="${STB_MODULES} cvodes/cvm/src"
-    SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} sundialsTB/cvodes/cvm/src/setup.m:sundialsTB/cvodes/cvm/src/setup.m.in"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} sundialsTB/cvodes/cvm/src/Makefile:sundialsTB/cvodes/cvm/src/Makefile.in"
-  fi
-
-  if test "X${IDA_ENABLED}" = "Xyes"; then
-    STB_MODULES="${STB_MODULES} idas/idm/src"
-    SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} sundialsTB/idas/idm/src/setup.m:sundialsTB/idas/idm/src/setup.m.in"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} sundialsTB/idas/idm/src/Makefile:sundialsTB/idas/idm/src/Makefile.in"
-  fi
-
-  if test "X${KINSOL_ENABLED}" = "Xyes"; then
-    STB_MODULES="${STB_MODULES} kinsol/kim/src"
-    SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} sundialsTB/kinsol/kim/src/setup.m:sundialsTB/kinsol/kim/src/setup.m.in"
-    SUNDIALS_MAKEFILES="${SUNDIALS_MAKEFILES} sundialsTB/kinsol/kim/src/Makefile:sundialsTB/kinsol/kim/src/Makefile.in"
-  fi
-
+# If needed, add Makefile update script to the list of additional files to be generated
+if test "X${EXAMPLES_ENABLED}" = "Xyes" && test "X${EXS_INSTDIR}" != "Xno"; then
+  SUNDIALS_CONFIGFILES="${SUNDIALS_CONFIGFILES} bin/makefile-update.sh:bin/makefile-update.in"
 fi
 
 ]) dnl END SUNDIALS_BUILD_MODULES_LIST
+
+#------------------------------------------------------------------
+# POST PROCESSING OF EXAMPLE Makefiles for export
+#------------------------------------------------------------------
+
+AC_DEFUN([SUNDIALS_POST_PROCESSING],
+[
+
+# If installing examples, the Makefiles that will be exported must
+# be post-processed to complete the substitution of all variables. 
+# After config.status runs, each example subdirectory contains an 
+# export makefile, named Makefile_ex, which was created from the 
+# common template in examples/templates.
+#
+# The following variables are still to be substituted at this point:
+#   SOLVER
+#   EXAMPLES
+#   EXAMPLES_BL
+#   SOLVER_LIB SOLVER_FLIB
+#   NVEC_LIB NVEC_FLIB
+# 
+# This function is called ONLY if examples are enabled AND examples will 
+# be installed. If so, it sets up commands to be called after config.status
+# has generated a first version of the Makefiles for export:
+# 
+# (1) For each solver, proceed ONLY if the solver is enabled.
+# (2) For each type of examples, proceed ONLY if they can be compiled AND
+#     the example directory exists.
+
+# CVODE module
+if test "X${CVODE_ENABLED}" = "Xyes"; then
+
+  if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvode/serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([cvode_ser_ex_bl],
+       [   
+       IN_FILE="examples/cvode/serial/Makefile_ex"
+       SOLVER="CVODE"
+       SOLVER_LIB="sundials_cvode"
+       SOLVER_FLIB=""
+       EXAMPLES="cvAdvDiff_bnd cvDirectDemo_ls cvDiurnal_kry_bp cvDiurnal_kry cvKrylovDemo_ls cvKrylovDemo_prec cvRoberts_dns cvRoberts_dns_uw"
+       EXAMPLES_BL="cvAdvDiff_bndL cvRoberts_dnsL"
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([cvode_ser_ex],
+       [   
+       IN_FILE="examples/cvode/serial/Makefile_ex"
+       SOLVER="CVODE"
+       SOLVER_LIB="sundials_cvode"
+       SOLVER_FLIB=""
+       EXAMPLES="cvAdvDiff_bnd cvDirectDemo_ls cvDiurnal_kry_bp cvDiurnal_kry cvKrylovDemo_ls cvKrylovDemo_prec cvRoberts_dns cvRoberts_dns_uw"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${SERIAL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvode/fcmix_serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([cvode_fser_ex_bl],
+       [
+       IN_FILE="examples/cvode/fcmix_serial/Makefile_ex"
+       SOLVER="CVODE"
+       SOLVER_LIB="sundials_cvode"
+       SOLVER_FLIB="sundials_fcvode"
+       EXAMPLES="fcvAdvDiff_bnd fcvDiurnal_kry_bp fcvDiurnal_kry fcvRoberts_dns"
+       EXAMPLES_BL="fcvRoberts_dnsL"
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([cvode_fser_ex],
+       [
+       IN_FILE="examples/cvode/fcmix_serial/Makefile_ex"
+       SOLVER="CVODE"
+       SOLVER_LIB="sundials_cvode"
+       SOLVER_FLIB="sundials_fcvode"
+       EXAMPLES="fcvAdvDiff_bnd fcvDiurnal_kry_bp fcvDiurnal_kry fcvRoberts_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvode/parallel ; then
+     AC_CONFIG_COMMANDS([cvode_par_ex],
+     [
+     IN_FILE="examples/cvode/parallel/Makefile_ex"
+     SOLVER="CVODE"
+     SOLVER_LIB="sundials_cvode"
+     SOLVER_FLIB=""
+     EXAMPLES="cvAdvDiff_non_p cvDiurnal_kry_bbd_p cvDiurnal_kry_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+  if test "X${PARALLEL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvode/fcmix_parallel ; then
+     AC_CONFIG_COMMANDS([cvode_fpar_ex],
+     [
+     IN_FILE="examples/cvode/fcmix_parallel/Makefile_ex"
+     SOLVER="CVODE"
+     SOLVER_LIB="sundials_cvode"
+     SOLVER_FLIB="sundials_fcvode"
+     EXAMPLES="fcvDiag_non_p fcvDiag_kry_bbd_p fcvDiag_kry_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+fi
+
+
+# CVODES module
+if test "X${CVODES_ENABLED}" = "Xyes"; then
+
+  if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvodes/serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([cvodes_ser_ex_bl],
+       [
+       IN_FILE="examples/cvodes/serial/Makefile_ex"
+       SOLVER="CVODES"
+       SOLVER_LIB="sundials_cvodes"
+       SOLVER_FLIB=""
+       EXAMPLES="cvsAdvDiff_ASAi_bnd cvsAdvDiff_FSA_non cvsDiurnal_kry_bp cvsFoodWeb_ASAp_kry cvsKrylovDemo_prec cvsAdvDiff_bnd cvsDirectDemo_ls cvsDiurnal_kry cvsHessian_ASA_FSA cvsRoberts_ASAi_dns cvsRoberts_dns_uw  cvsDiurnal_FSA_kry cvsFoodWeb_ASAi_kry cvsKrylovDemo_ls cvsRoberts_dns cvsRoberts_FSA_dns"
+       EXAMPLES_BL="cvsRoberts_dnsL cvsAdvDiff_bndL"
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([cvodes_ser_ex],
+       [
+       IN_FILE="examples/cvodes/serial/Makefile_ex"
+       SOLVER="CVODES"
+       SOLVER_LIB="sundials_cvodes"
+       SOLVER_FLIB=""
+       EXAMPLES="cvsAdvDiff_ASAi_bnd cvsAdvDiff_FSA_non cvsDiurnal_kry_bp cvsFoodWeb_ASAp_kry cvsKrylovDemo_prec cvsAdvDiff_bnd cvsDirectDemo_ls cvsDiurnal_kry cvsHessian_ASA_FSA cvsRoberts_ASAi_dns cvsRoberts_dns_uw  cvsDiurnal_FSA_kry cvsFoodWeb_ASAi_kry cvsKrylovDemo_ls cvsRoberts_dns cvsRoberts_FSA_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cvodes/parallel ; then
+     AC_CONFIG_COMMANDS([cvodes_par_ex],
+     [
+     IN_FILE="examples/cvodes/parallel/Makefile_ex"
+     SOLVER="CVODES"
+     SOLVER_LIB="sundials_cvodes"
+     SOLVER_FLIB=""
+     EXAMPLES="cvsAdvDiff_ASAp_non_p cvsAdvDiff_non_p cvsDiurnal_FSA_kry_p cvsDiurnal_kry_p cvsAdvDiff_FSA_non_p cvsAtmDisp_ASAi_kry_bbd_p cvsDiurnal_kry_bbd_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+fi
+
+
+# IDA module
+if test "X${IDA_ENABLED}" = "Xyes"; then
+
+  if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/ida/serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([ida_ser_ex_bl],
+       [
+       IN_FILE="examples/ida/serial/Makefile_ex"
+       SOLVER="IDA"
+       SOLVER_LIB="sundials_ida"
+       SOLVER_FLIB=""
+       EXAMPLES="idaFoodWeb_bnd idaHeat2D_bnd idaHeat2D_kry idaKrylovDemo_ls idaRoberts_dns idaSlCrank_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([ida_ser_ex],
+       [
+       IN_FILE="examples/ida/serial/Makefile_ex"
+       SOLVER="IDA"
+       SOLVER_LIB="sundials_ida"
+       SOLVER_FLIB=""
+       EXAMPLES="idaFoodWeb_bnd idaHeat2D_bnd idaHeat2D_kry idaKrylovDemo_ls idaRoberts_dns idaSlCrank_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${SERIAL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/ida/fcmix_serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([ida_fser_ex_bl],
+       [
+       IN_FILE="examples/ida/fcmix_serial/Makefile_ex"
+       SOLVER="IDA"
+       SOLVER_LIB="sundials_ida"
+       SOLVER_FLIB="sundials_fida"
+       EXAMPLES="fidaRoberts_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([ida_fser_ex],
+       [
+       IN_FILE="examples/ida/fcmix_serial/Makefile_ex"
+       SOLVER="IDA"
+       SOLVER_LIB="sundials_ida"
+       SOLVER_FLIB="sundials_fida"
+       EXAMPLES="fidaRoberts_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/ida/parallel ; then
+     AC_CONFIG_COMMANDS([ida_par_ex],
+     [
+     IN_FILE="examples/ida/parallel/Makefile_ex"
+     SOLVER="IDA"
+     SOLVER_LIB="sundials_ida"
+     SOLVER_FLIB=""
+     EXAMPLES="idaFoodWeb_kry_bbd_p idaFoodWeb_kry_p idaHeat2D_kry_bbd_p idaHeat2D_kry_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+  if test "X${PARALLEL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/ida/fcmix_parallel ; then
+     AC_CONFIG_COMMANDS([ida_fpar_ex],
+     [
+     IN_FILE="examples/ida/fcmix_parallel/Makefile_ex"
+     SOLVER="IDA"
+     SOLVER_LIB="sundials_ida"
+     SOLVER_FLIB="sundials_fida"
+     EXAMPLES="fidaHeat2D_kry_bbd_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+fi
+
+
+# IDAS module
+if test "X${IDAS_ENABLED}" = "Xyes"; then
+
+  if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/idas/serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([idas_ser_ex_bl],
+       [
+       IN_FILE="examples/idas/serial/Makefile_ex"
+       SOLVER="IDAS"
+       SOLVER_LIB="sundials_idas"
+       SOLVER_FLIB=""
+       EXAMPLES="idasAkzoNob_ASAi_dns idasFoodWeb_bnd idasHeat2D_kry idasKrylovDemo_ls idasRoberts_dns idasSlCrank_dns idasAkzoNob_dns idasHeat2D_bnd idasHessian_ASA_FSA idasRoberts_ASAi_dns idasRoberts_FSA_dns idasSlCrank_FSA_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([idas_ser_ex],
+       [
+       IN_FILE="examples/idas/serial/Makefile_ex"
+       SOLVER="IDAS"
+       SOLVER_LIB="sundials_idas"
+       SOLVER_FLIB=""
+       EXAMPLES="idasAkzoNob_ASAi_dns idasFoodWeb_bnd idasHeat2D_kry idasKrylovDemo_ls idasRoberts_dns idasSlCrank_dns idasAkzoNob_dns idasHeat2D_bnd idasHessian_ASA_FSA idasRoberts_ASAi_dns idasRoberts_FSA_dns idasSlCrank_FSA_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/idas/parallel ; then
+     AC_CONFIG_COMMANDS([idas_par_ex],
+     [
+     IN_FILE="examples/idas/parallel/Makefile_ex"
+     SOLVER="IDAS"
+     SOLVER_LIB="sundials_idas"
+     SOLVER_FLIB=""
+     EXAMPLES="idasBruss_ASAp_kry_bbd_p idasBruss_kry_bbd_p idasFoodWeb_kry_p idasHeat2D_kry_bbd_p idasBruss_FSA_kry_bbd_p idasFoodWeb_kry_bbd_p idasHeat2D_FSA_kry_bbd_p idasHeat2D_kry_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+fi
+
+
+# KINSOL module
+if test "X${KINSOL_ENABLED}" = "Xyes"; then
+
+  if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/kinsol/serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([kinsol_ser_ex_bl],
+       [
+       IN_FILE="examples/kinsol/serial/Makefile_ex"
+       SOLVER="KINSOL"
+       SOLVER_LIB="sundials_kinsol"
+       SOLVER_FLIB=""
+       EXAMPLES="kinFerTron_dns kinFoodWeb_kry kinKrylovDemo_ls kinLaplace_bnd kinRoboKin_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([kinsol_ser_ex],
+       [
+       IN_FILE="examples/kinsol/serial/Makefile_ex"
+       SOLVER="KINSOL"
+       SOLVER_LIB="sundials_kinsol"
+       SOLVER_FLIB=""
+       EXAMPLES="kinFerTron_dns kinFoodWeb_kry kinKrylovDemo_ls kinLaplace_bnd kinRoboKin_dns"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${SERIAL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/kinsol/fcmix_serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([kinsol_fser_ex_bl],
+       [
+       IN_FILE="examples/kinsol/fcmix_serial/Makefile_ex"
+       SOLVER="KINSOL"
+       SOLVER_LIB="sundials_kinsol"
+       SOLVER_FLIB="sundials_fkinsol"
+       EXAMPLES="fkinDiagon_kry"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([kinsol_fser_ex],
+       [
+       IN_FILE="examples/kinsol/fcmix_serial/Makefile_ex"
+       SOLVER="KINSOL"
+       SOLVER_LIB="sundials_kinsol"
+       SOLVER_FLIB="sundials_fkinsol"
+       EXAMPLES="fkinDiagon_kry"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/kinsol/parallel ; then
+     AC_CONFIG_COMMANDS([kinsol_par_ex],
+     [
+     IN_FILE="examples/kinsol/parallel/Makefile_ex"
+     SOLVER="KINSOL"
+     SOLVER_LIB="sundials_kinsol"
+     SOLVER_FLIB=""
+     EXAMPLES="kinFoodWeb_kry_bbd_p kinFoodWeb_kry_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+  if test "X${PARALLEL_F77_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/kinsol/fcmix_parallel ; then
+     AC_CONFIG_COMMANDS([kinsol_fpar_ex],
+     [
+     IN_FILE="examples/kinsol/fcmix_parallel/Makefile_ex"
+     SOLVER="KINSOL"
+     SOLVER_LIB="sundials_kinsol"
+     SOLVER_FLIB="sundials_fkinsol"
+     EXAMPLES="fkinDiagon_kry_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+fi
+
+
+# CPODES module
+if test "X${CPODES_ENABLED}" = "Xyes"; then
+
+  if test "X${SERIAL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cpodes/serial ; then
+     if test "X${LAPACK_ENABLED}" = "Xyes"; then
+       AC_CONFIG_COMMANDS([cpodes_ser_ex_bl],
+       [
+       IN_FILE="examples/cpodes/serial/Makefile_ex"
+       SOLVER="CPODES"
+       SOLVER_LIB="sundials_cpodes"
+       SOLVER_FLIB=""
+       EXAMPLES="cpsAdvDiff_bnd cpsAdvDiff_non cpsNewtCrd_dns cpsPend_dns cpsRoberts_dns cpsVanDPol_non"
+       EXAMPLES_BL="cpsAdvDiff_bndL cpsPend_dnsL cpsRoberts_dnsL"
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     else
+       AC_CONFIG_COMMANDS([cpodes_ser_ex],
+       [
+       IN_FILE="examples/cpodes/serial/Makefile_ex"
+       SOLVER="CPODES"
+       SOLVER_LIB="sundials_cpodes"
+       SOLVER_FLIB=""
+       EXAMPLES="cpsAdvDiff_bnd cpsAdvDiff_non cpsNewtCrd_dns cpsPend_dns cpsRoberts_dns cpsVanDPol_non"
+       EXAMPLES_BL=""
+       ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+       ])
+     fi
+  fi
+
+  if test "X${PARALLEL_C_EXAMPLES}" = "Xyes" && test -d ${srcdir}/examples/cpodes/parallel ; then
+     AC_CONFIG_COMMANDS([cpodes_par_ex],
+     [
+     IN_FILE="examples/cpodes/parallel/Makefile_ex"
+     SOLVER="CPODES"
+     SOLVER_LIB="sundials_cpodes"
+     SOLVER_FLIB=""
+     EXAMPLES="cpsHeat2D_kry_bbd_p"
+     EXAMPLES_BL=""
+     ${SHELL} bin/makefile-update.sh "${IN_FILE}" "${SOLVER}" "${EXAMPLES}" "${EXAMPLES_BL}" "${SOLVER_LIB}" "${SOLVER_FLIB}"
+     ])
+  fi
+
+fi
+
+]) dnl END SUNDIALS_POST_PROCESSING
 
 #------------------------------------------------------------------
 # PRINT STATUS REPORT
@@ -2888,18 +3086,18 @@ Configuration
   Build System:              ${build}
 
   C Preprocessor:            ${CPP} 
-  C Preporcessor Flags:      ${CPPFLAGS}
+  C Preprocessor Flags:      ${CPPFLAGS}
   C Compiler:	             ${CC}
   C Compiler Flags           ${CFLAGS}
   C Linker:                  ${CC}
   Linker Flags:              ${LDFLAGS}
   Libraries:                 ${LIBS}"
 
-if test "X${F77_EXAMPLES_ENABLED}" = "Xyes"; then
+if test "X${F77_OK}" = "Xyes"; then
 echo "
   Fortran Compiler:          ${F77}
   Fortran Compiler Flags:    ${FFLAGS}
-  Fortran Linker:            ${F77_LNKR_OUT}
+  Fortran Linker:            ${F77_LNKR}
   Extra Fortran Libraries:   ${FLIBS}"
 fi
 
@@ -2919,16 +3117,7 @@ if test "X${MPI_ENABLED}" = "Xyes" && test "X${F77_EXAMPLES_ENABLED}" = "Xyes" &
 echo "
   Using MPI-Fortran script?  ${USE_MPIF77_SCRIPT}
   MPI-Fortran:               ${MPIF77}
-  MPI-Fortran Linker:        ${MPIF77_LNKR_OUT}"
-fi
-
-if test "X${STB_ENABLED}" = "Xyes"; then
-echo "
-  Matlab executable:         ${MATLAB_CMD}
-  Extension of MEX files:    ${MEXEXT}
-  Mex options file:          ${MEXOPTS}
-  Mex compiler options:      ${MEXFLAGS}
-  Mex linker flags:          ${MEXLDADD}"
+  MPI-Fortran Linker:        ${MPIF77_LNKR}"
 fi
 
 # Determine SOURCE, BUILD, and EXEC_PREFIX directories
@@ -2950,9 +3139,6 @@ echo "
 
 if test "X${EXAMPLES_ENABLED}" = "Xyes"; then
 echo "  examples installed in:     ${EXS_INSTDIR}"
-fi
-if test "X${STB_ENABLED}" = "Xyes"; then
-echo "  sundialsTB installed in:   ${STB_PATH}"
 fi
 
 echo "
@@ -2999,20 +3185,6 @@ if test "X${CPODES_ENABLED}" = "Xyes"; then
   echo "  ${THIS_LINE}"
 fi
 
-if test "X${STB_ENABLED}" = "Xyes"; then
-  THIS_LINE="sundialsTB:"
-  if test "X${CVODES_ENABLED}" = "Xyes" && test -d ${srcdir}/sundialsTB/cvodes ; then
-    THIS_LINE="${THIS_LINE} cvodes"
-  fi
-  if test "X${IDA_ENABLED}" = "Xyes" && test -d ${srcdir}/sundialsTB/idas ; then
-    THIS_LINE="${THIS_LINE} idas"
-  fi
-  if test "X${KINSOL_ENABLED}" = "Xyes"; then
-     THIS_LINE="${THIS_LINE} kinsol"
-  fi
-  echo "  ${THIS_LINE}"
-fi
-
 if test "X${EXAMPLES_ENABLED}" = "Xyes"; then
 echo "
 Examples
@@ -3024,10 +3196,6 @@ echo "  Parallel C examples:       ${PARALLEL_C_EXAMPLES}"
 echo "  Serial Fortran examples:   ${SERIAL_F77_EXAMPLES}"
 echo "  Parallel Fortran examples: ${PARALLEL_F77_EXAMPLES}"
 
-if test "X${DEV_EXAMPLES_ENABLED}" = "Xyes"; then
-echo "  Serial C examples (dev):   ${SERIAL_DEV_C_EXAMPLES}"
-echo "  Parallel C examples (dev): ${PARALLEL_DEV_C_EXAMPLES}"
-fi
 fi
 
 

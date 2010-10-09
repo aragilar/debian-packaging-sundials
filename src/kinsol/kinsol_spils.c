@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:37 $
+ * $Revision: 1.4 $
+ * $Date: 2007/04/30 19:29:01 $
  * -----------------------------------------------------------------
  * Programmer(s): Radu Serban and Aaron Collier @ LLNL
  * -----------------------------------------------------------------
@@ -43,7 +43,7 @@
 #define lrw1           (kin_mem->kin_lrw1)
 #define liw1           (kin_mem->kin_liw1)
 #define func           (kin_mem->kin_func)
-#define f_data         (kin_mem->kin_f_data)
+#define user_data      (kin_mem->kin_user_data)
 #define printfl        (kin_mem->kin_printfl)
 #define lmem           (kin_mem->kin_lmem)
 #define uu             (kin_mem->kin_uu)
@@ -68,6 +68,11 @@
 #define njtimes        (kinspils_mem->s_njtimes)
 #define nfes           (kinspils_mem->s_nfes)
 #define new_uu         (kinspils_mem->s_new_uu)
+
+#define jtimesDQ       (kinspils_mem->s_jtimesDQ)
+#define jtimes         (kinspils_mem->s_jtimes)
+#define J_data         (kinspils_mem->s_J_data)
+
 #define last_flag      (kinspils_mem->s_last_flag)
 
 
@@ -114,9 +119,7 @@ int KINSpilsSetMaxRestarts(void *kinmem, int maxrs)
  */
 
 int KINSpilsSetPreconditioner(void *kinmem,
-			      KINSpilsPrecSetupFn pset,
-			      KINSpilsPrecSolveFn psolve,
-			      void *P_data)
+			      KINSpilsPrecSetupFn pset, KINSpilsPrecSolveFn psolve)
 {
   KINMem kin_mem;
   KINSpilsMem kinspils_mem;
@@ -137,7 +140,6 @@ int KINSpilsSetPreconditioner(void *kinmem,
 
   kinspils_mem->s_pset   = pset;
   kinspils_mem->s_psolve = psolve;
-  kinspils_mem->s_P_data = P_data;
 
   return(KINSPILS_SUCCESS);
 }
@@ -148,9 +150,8 @@ int KINSpilsSetPreconditioner(void *kinmem,
  * -----------------------------------------------------------------
  */
 
-int KINSpilsSetJacTimesVecFn(void *kinmem,
-			     KINSpilsJacTimesVecFn jtimes,
-			     void *J_data)
+int KINSpilsSetJacTimesVecFn(void *kinmem, KINSpilsJacTimesVecFn jtv)
+
 {
   KINMem kin_mem;
   KINSpilsMem kinspils_mem;
@@ -169,8 +170,12 @@ int KINSpilsSetJacTimesVecFn(void *kinmem,
   }
   kinspils_mem = (KINSpilsMem) lmem;
 
-  kinspils_mem->s_jtimes = jtimes;
-  kinspils_mem->s_J_data = J_data;
+  if (jtv != NULL) {
+    jtimesDQ = FALSE;
+    jtimes = jtv;
+  } else {
+    jtimesDQ = TRUE;
+  }
 
   return(KINSPILS_SUCCESS);
 }
@@ -454,6 +459,9 @@ char *KINSpilsGetReturnFlagName(int flag)
   case KINSPILS_MEM_FAIL:
     sprintf(name, "KINSPILS_MEM_FAIL");
     break;
+  case KINSPILS_PMEM_NULL:
+    sprintf(name, "KINSPILS_PMEM_NULL");
+    break;
   default:
     sprintf(name, "NONE");
   }
@@ -472,8 +480,6 @@ char *KINSpilsGetReturnFlagName(int flag)
 #define pset    (kinspils_mem->s_pset)
 #define psolve  (kinspils_mem->s_psolve)
 #define P_data  (kinspils_mem->s_P_data)
-#define jtimes  (kinspils_mem->s_jtimes)
-#define J_data  (kinspils_mem->s_J_data)
 
 /*
  * -----------------------------------------------------------------
@@ -559,16 +565,16 @@ int KINSpilsPSolve(void *kinsol_mem, N_Vector r, N_Vector z, int lrdummy)
 
 int KINSpilsDQJtimes(N_Vector v, N_Vector Jv,
                      N_Vector u, booleantype *new_u, 
-                     void *jac_data)
+                     void *data)
 {
   realtype sigma, sigma_inv, sutsv, sq1norm, sign, vtv;
   KINMem kin_mem;
   KINSpilsMem kinspils_mem;
   int retval;
 
-  /* jac_data is kin_mem */
+  /* data is kin_mem */
 
-  kin_mem = (KINMem) jac_data;
+  kin_mem = (KINMem) data;
   kinspils_mem = (KINSpilsMem) lmem;
 
   /* scale the vector v and put Du*v into vtemp1 */
@@ -603,7 +609,7 @@ int KINSpilsDQJtimes(N_Vector v, N_Vector Jv,
  
   /* call the system function to calculate func(u+sigma*v) */
 
-  retval = func(vtemp1, vtemp2, f_data);    
+  retval = func(vtemp1, vtemp2, user_data);    
   nfes++;
   if (retval != 0) return(retval);
 

@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:34 $
+ * $Revision: 1.7 $
+ * $Date: 2007/04/30 17:41:06 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -24,76 +24,75 @@ extern "C" {
 #include <cvodes/cvodes_bbdpre.h>
 #include <sundials/sundials_band.h>
 
-  /*
-   * -----------------------------------------------------------------
-   * Type: CVBBDPrecData
-   * -----------------------------------------------------------------
-   */
+/*
+ * -----------------------------------------------------------------
+ * Type: CVBBDPrecData
+ * -----------------------------------------------------------------
+ */
 
-  typedef struct {
+typedef struct CVBBDPrecDataRec {
 
-    /* passed by user to CVBBDPrecAlloc and used by PrecSetup/PrecSolve */
+  /* passed by user to CVBBDPrecAlloc and used by PrecSetup/PrecSolve */
 
-    long int mudq, mldq, mukeep, mlkeep;
-    realtype dqrely;
-    CVLocalFn gloc;
-    CVCommFn cfn;
+  int mudq, mldq, mukeep, mlkeep;
+  realtype dqrely;
+  CVLocalFn gloc;
+  CVCommFn cfn;
 
-    /* set by CVBBDPrecSetup and used by CVBBDPrecSolve */
+  /* set by CVBBDPrecSetup and used by CVBBDPrecSolve */
 
-    BandMat savedJ;
-    BandMat savedP;
-    long int *pivots;
+  DlsMat savedJ;
+  DlsMat savedP;
+  int *pivots;
 
-    /* set by CVBBDPrecAlloc and used by CVBBDPrecSetup */
+  /* set by CVBBDPrecAlloc and used by CVBBDPrecSetup */
 
-    long int n_local;
+  int n_local;
 
-    /* available for optional output */
+  /* available for optional output */
 
-    long int rpwsize;
-    long int ipwsize;
-    long int nge;
+  long int rpwsize;
+  long int ipwsize;
+  long int nge;
 
-    /* pointer to cvode_mem */
+  /* pointer to cvode_mem */
 
-    void *cvode_mem;
+  void *cvode_mem;
 
-  } *CVBBDPrecData;
+} *CVBBDPrecData;
 
 
-  /*
-   * -----------------------------------------------------------------
-   * Type: CVBBDPrecDataB
-   * -----------------------------------------------------------------
-   */
+/*
+ * -----------------------------------------------------------------
+ * Type: CVBBDPrecDataB
+ * -----------------------------------------------------------------
+ */
 
-  typedef struct {
+typedef struct CVBBDPrecDataRecB {
 
-    /* BBD user functions (glocB and cfnB) for backward run */
-    CVLocalFnB glocB;
-    CVCommFnB  cfnB;
-    
-    /* BBD prec data */
-    void *bbd_dataB;
+  /* BBD user functions (glocB and cfnB) for backward run */
+  CVLocalFnB glocB;
+  CVCommFnB  cfnB;
 
-  } *CVBBDPrecDataB;
+} *CVBBDPrecDataB;
 
-  /*
-   * -----------------------------------------------------------------
-   * CVBBDPRE error messages
-   * -----------------------------------------------------------------
-   */
+/*
+ * -----------------------------------------------------------------
+ * CVBBDPRE error messages
+ * -----------------------------------------------------------------
+ */
 
-#define MSGBBDP_CVMEM_NULL  "Integrator memory is NULL."
-#define MSGBBDP_MEM_FAIL    "A memory request failed."
-#define MSGBBDP_BAD_NVECTOR "A required vector operation is not implemented."
-#define MSGBBDP_PDATA_NULL  "CVBBDPRE memory is NULL."
-#define MSGBBDP_FUNC_FAILED "The gloc or cfn routine failed in an unrecoverable manner."
+#define MSGBBD_MEM_NULL    "Integrator memory is NULL."
+#define MSGBBD_LMEM_NULL   "Linear solver memory is NULL. One of the SPILS linear solvers must be attached."
+#define MSGBBD_MEM_FAIL    "A memory request failed."
+#define MSGBBD_BAD_NVECTOR "A required vector operation is not implemented."
+#define MSGBBD_PMEM_NULL   "BBD peconditioner memory is NULL. CVBBDPrecInit must be called."
+#define MSGBBD_FUNC_FAILED "The gloc or cfn routine failed in an unrecoverable manner."
 
-#define MSGBBDP_CAMEM_NULL  "cvadj_mem = NULL illegal."
-#define MSGBBDP_PDATAB_NULL "CVBBDPRE memory is NULL for the backward integration."
-#define MSGBBDP_BAD_T       "Bad t for interpolation."
+#define MSGBBD_NO_ADJ      "Illegal attempt to call before calling CVodeAdjInit."
+#define MSGBBD_BAD_WHICH   "Illegal value for the which parameter."
+#define MSGBBD_PDATAB_NULL "BBD preconditioner memory is NULL for the backward integration."
+#define MSGBBD_BAD_TINTERP "Bad t for interpolation."
 
 
 #ifdef __cplusplus

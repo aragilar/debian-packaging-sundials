@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:33 $
+ * $Revision: 1.8 $
+ * $Date: 2007/12/12 18:13:22 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Alan C. Hindmarsh, Radu Serban and
  *                Aaron Collier @ LLNL
@@ -35,13 +35,13 @@
  *   FNVINITS and FNVINITP interface to N_VNew_Serial and
  *               N_VNew_Parallel, respectively
  * 
- *   FCVMALLOC  interfaces to CVodeCreate, CVodeSetFdata, and CVodeMalloc
+ *   FCVMALLOC  interfaces to CVodeCreate, CVodeSetUserData, and CVodeInit
  * 
  *   FCVREINIT  interfaces to CVReInit
  * 
  *   FCVSETIIN and FCVSETRIN interface to CVodeSet*
  *
- *   FCVEWTSET  interfaces to CVodeSetEwtFn
+ *   FCVEWTSET  interfaces to CVodeWFtolerances
  * 
  *   FCVDIAG    interfaces to CVDiag
  * 
@@ -50,6 +50,11 @@
  * 
  *   FCVBAND    interfaces to CVBand
  *   FCVBANDSETJAC    interfaces to CVBandSetJacFn
+ *
+ *   FCVLAPACKDENSE   interfaces to CVLapackDense
+ *   FCVLAPACKBAND    interfaces to CVLapackBand
+ *   FCVLAPACKDENSESETJAC  interfaces to CVLapackSetJacFn
+ *   FCVLAPACKBANDSETJAC   interfaces to CVLapackSetJacFn
  *
  *   FCVSPGMR and FCVSPGMRREINIT interface to CVSpgmr and CVSpilsSet*
  *   FCVSPBCG, FCVSPBCGREINIT interface to CVSpbcg and CVSpilsSet*
@@ -73,6 +78,8 @@
  *   FCVFUN    is called by the interface function FCVf of type CVRhsFn
  *   FCVDJAC   is called by the interface fn. FCVDenseJac of type CVDenseJacFn
  *   FCVBJAC   is called by the interface fn. FCVBandJac of type CVBandJacFn
+ *   FCVLDJAC  is called by the interface fn. FCVLapackDenseJac of type CVLapackJacFn
+ *   FCVLBJAC  is called by the interface fn. FCVLapackBandJac of type CVLapackJacFn
  *   FCVPSOL   is called by the interface fn. FCVPSol of type CVSpilsPrecSolveFn
  *   FCVPSET   is called by the interface fn. FCVPSet of type CVSpilsPrecSetupFn
  *   FCVJTIMES is called by interface fn. FCVJtimes of type CVSpilsJacTimesVecFn
@@ -146,7 +153,15 @@
  * On return, set IER = 0 if successful, IER > 0 if a recoverable error occurred,
  * and IER < 0 if an unrecoverable error ocurred.
  * 
- * (4) Optional user-supplied Jacobian-vector product routine: FCVJTIMES
+ * (4s) Optional user-supplied Lapack dense Jacobian routine: FCVLDJAC
+ * See the description for FCVDJAC. NOTE: the dense Jacobian matrix
+ * is NOT set to zero before calling the user's FCVLDJAC.
+ *
+ * (5s) Optional user-supplied Lapack band Jacobian routine: FCVLBJAC
+ * See the description for FCVBJAC. NOTE: the band Jacobian matrix
+ * is NOT set to zero before calling the user's FCVLBJAC.
+ *
+ * (6) Optional user-supplied Jacobian-vector product routine: FCVJTIMES
  * As an option when using the SP* linear solver, the user may supply
  * a routine that computes the product of the system Jacobian J = df/dy and 
  * a given vector v.  If supplied, it must have the following form:
@@ -158,7 +173,7 @@
  * and nonzero otherwise.
  * IPAR and RPAR are user (integer and real) arrays passed to FCVMALLOC.
  * 
- * (5) Optional user-supplied error weight vector routine: FCVEWT
+ * (7) Optional user-supplied error weight vector routine: FCVEWT
  * As an option to providing the relative and absolute tolerances, the user
  * may supply a routine that computes the weights used in the WRMS norms.
  * If supplied, it must have the following form:
@@ -170,16 +185,16 @@
  *
  * -----------------------------------------------------------------------------
  *
- * (6) Initialization:  FNVINITS / FNVINITP , FCVMALLOC, FCVREINIT
+ * (8) Initialization:  FNVINITS / FNVINITP , FCVMALLOC, FCVREINIT
  * 
- * (6.1s) To initialize the serial machine environment, the user must make
+ * (8.1s) To initialize the serial machine environment, the user must make
  * the following call:
  *        CALL FNVINITS (1, NEQ, IER)
  * where the first argument is the CVODE solver ID. The other arguments are:
  * NEQ     = size of vectors
  * IER     = return completion flag. Values are 0 = success, -1 = failure.
  * 
- * (6.1p) To initialize the parallel machine environment, the user must make 
+ * (8.1p) To initialize the parallel machine environment, the user must make 
  * the following call:
  *        CALL FNVINITP (1, NLOCAL, NGLOBAL, IER)
  * The arguments are:
@@ -191,7 +206,7 @@
  * set to MPI_COMM_WORLD.  If not, this routine initializes MPI and sets
  * the communicator equal to MPI_COMM_WORLD.
  * 
- * (6.2) To set various problem and solution parameters and allocate
+ * (8.2) To set various problem and solution parameters and allocate
  * internal memory, make the following call:
  *       CALL FCVMALLOC(T0, Y0, METH, ITMETH, IATOL, RTOL, ATOL,
  *      1               IOUT, ROUT, IPAR, RPAR, IER)
@@ -247,7 +262,7 @@
  * with FLAG = 1 to specify that FCVEWT is provided.
  * The return flag IER is 0 if successful, and nonzero otherwise.
  *
- * (6.3) To re-initialize the CVODE solver for the solution of a new problem
+ * (8.3) To re-initialize the CVODE solver for the solution of a new problem
  * of the same size as one already solved, make the following call:
  *       CALL FCVREINIT(T0, Y0, IATOL, RTOL, ATOL, IER)
  * The arguments have the same names and meanings as those of FCVMALLOC,
@@ -258,7 +273,7 @@
  * previous  FCVMALLOC call.  The call to specify the linear system solution
  * method may or may not be needed; see paragraph (7) below.
  * 
- * (6.4) To set various integer optional inputs, make the folowing call:
+ * (8.4) To set various integer optional inputs, make the folowing call:
  *       CALL FCVSETIIN(KEY, VALUE, IER)
  * to set the integer value VAL to the optional input specified by the
  * quoted character string KEY.
@@ -277,14 +292,14 @@
  *
  * -----------------------------------------------------------------------------
  *
- * (7) Specification of linear system solution method.
+ * (9) Specification of linear system solution method.
  * In the case of a stiff system, the implicit BDF method involves the solution
  * of linear systems related to the Jacobian J = df/dy of the ODE system.
  * CVODE presently includes four choices for the treatment of these systems,
  * and the user of FCVODE must call a routine with a specific name to make the
  * desired choice.
  * 
- * (7.1) Diagonal approximate Jacobian.
+ * (9.1) Diagonal approximate Jacobian.
  * This choice is appropriate when the Jacobian can be well approximated by
  * a diagonal matrix.  The user must make the call:
  *       CALL FCVDIAG(IER)
@@ -298,7 +313,7 @@
  *        NFELS   = IOUT(16) from CVDiagGetNumRhsEvals
  * See the CVODE manual for descriptions.
  * 
- * (7.2s) DENSE treatment of the linear system.
+ * (9.2s) DENSE treatment of the linear system.
  * The user must make the call
  *       CALL FCVDENSE(NEQ, IER)
  * The argument is:
@@ -319,7 +334,7 @@
  *        NJED    = IOUT(17) from CVDenseGetNumJacEvals
  * See the CVODE manual for descriptions.
  * 
- * (7.3s) BAND treatment of the linear system
+ * (9.3s) BAND treatment of the linear system
  * The user must make the call
  *       CALL FCVBAND(NEQ, MU, ML, IER)
  * The arguments are:
@@ -340,9 +355,25 @@
  *        LSTF    = IOUT(15) from CVBandGetLastFlag
  *        NFELS   = IOUT(16) from CVBandGetNumRhsEvals
  *        NJEB    = IOUT(17) from CVBandGetNumJacEvals
-  * See the CVODE manual for descriptions.
+ * See the CVODE manual for descriptions.
  *
- * (7.4) SPGMR treatment of the linear systems.
+ * (9.4s) LAPACK dense treatment of the linear system
+ * The user must make the call
+ *       CALL FCVLAPACKDENSE(NEQ, IER)
+ * and, optionally
+ *       CALL FCVLAPACKDENSESETJAC(FLAG, IER)
+ * with FLAG=1 if the user provides the function FCVLDJAC. 
+ * See (9.2s) for more details.
+ *
+ * (9.5s) LAPACK band treatment of the linear system
+ * The user must make the call
+ *       CALL FCVLAPACKBAND(NEQ, IER)
+ * and, optionally
+ *       CALL FCVLAPACKBANDSETJAC(FLAG, IER)
+ * with FLAG=1 if the user provides the function FCVLBJAC. 
+ * See (9.3s)
+ *
+ * (9.6) SPGMR treatment of the linear systems.
  * For the Scaled Preconditioned GMRES solution of the linear systems,
  * the user must make the following call:
  *       CALL FCVSPGMR(IPRETYPE, IGSTYPE, MAXL, DELT, IER)              
@@ -380,7 +411,7 @@
  * The arguments have the same meanings as for FCVSPGMR.  If MAXL is being
  * changed, then call FCVSPGMR instead.
  * 
- * (7.5) SPBCG treatment of the linear systems.
+ * (9.7) SPBCG treatment of the linear systems.
  * For the Scaled Preconditioned Bi-CGSTAB solution of the linear systems,
  * the user must make the following call:
  *       CALL FCVSPBCG(IPRETYPE, MAXL, DELT, IER)              
@@ -413,7 +444,7 @@
  *       CALL FCVSPBCGREINIT(IPRETYPE, MAXL, DELT, IER)              
  * The arguments have the same meanings as for FCVSPBCG.
  *
- * (7.6) SPTFQMR treatment of the linear systems.
+ * (9.8) SPTFQMR treatment of the linear systems.
  * For the Scaled Preconditioned TFQMR solution of the linear systems,
  * the user must make the following call:
  *       CALL FCVSPTFQMR(IPRETYPE, MAXL, DELT, IER)              
@@ -446,7 +477,7 @@
  *       CALL FCVSPTFQMRREINIT(IPRETYPE, MAXL, DELT, IER)              
  * The arguments have the same meanings as for FCVSPTFQMR.
  *
- * (7,7) Usage of user-supplied routines for the Krylov solvers
+ * (9.9) Usage of user-supplied routines for the Krylov solvers
  *
  * If the user program includes the FCVJTIMES routine for the evaluation of the 
  * Jacobian vector product, the following call must be made
@@ -474,7 +505,7 @@
  *
  * -----------------------------------------------------------------------------
  *
- * (8) The integrator: FCVODE
+ * (10) The integrator: FCVODE
  * Carrying out the integration is accomplished by making calls as follows:
  *       CALL FCVODE (TOUT, T, Y, ITASK, IER)
  * The arguments are:
@@ -493,7 +524,7 @@
  * 
  * -----------------------------------------------------------------------------
  *
- * (9) Computing solution derivatives: FCVDKY
+ * (11) Computing solution derivatives: FCVDKY
  * To obtain a derivative of the solution, of order up to the current method
  * order, make the following call:
  *       CALL FCVDKY (T, K, DKY, IER)
@@ -505,7 +536,7 @@
  * 
  * -----------------------------------------------------------------------------
  *
- * (10) Memory freeing: FCVFREE 
+ * (12) Memory freeing: FCVFREE 
  * To free the internal memory created by the calls to FCVMALLOC and
  * FNVINITS or FNVINITP, make the call
  *       CALL FCVFREE
@@ -522,114 +553,51 @@ extern "C" {
 
 /* header files  */
 
-#include <cvode/cvode.h>               /* definition of type CVRhsFn  */
-#include <sundials/sundials_band.h>    /* definition of BandMat       */
-#include <sundials/sundials_dense.h>   /* definition of DenseMat      */
+#include <cvode/cvode.h>
+#include <sundials/sundials_direct.h>  /* definition of type DlsMat   */
 #include <sundials/sundials_nvector.h> /* definition of type N_Vector */
 #include <sundials/sundials_types.h>   /* definition of type realtype */
 
 /* Definitions of interface function names */
 
-#if defined(F77_FUNC)
+#if defined(SUNDIALS_F77_FUNC)
 
-#define FCV_MALLOC         F77_FUNC(fcvmalloc, FCVMALLOC)
-#define FCV_REINIT         F77_FUNC(fcvreinit, FCVREINIT)
-#define FCV_SETIIN         F77_FUNC(fcvsetiin, FCVSETIIN)
-#define FCV_SETRIN         F77_FUNC(fcvsetrin, FCVSETRIN)
-#define FCV_EWTSET         F77_FUNC(fcvewtset, FCVEWTSET)
-#define FCV_DIAG           F77_FUNC(fcvdiag, FCVDIAG)
-#define FCV_DENSE          F77_FUNC(fcvdense, FCVDENSE)
-#define FCV_DENSESETJAC    F77_FUNC(fcvdensesetjac, FCVDENSESETJAC)
-#define FCV_BAND           F77_FUNC(fcvband, FCVBAND)
-#define FCV_BANDSETJAC     F77_FUNC(fcvbandsetjac, FCVBANDSETJAC)
-#define FCV_SPTFQMR        F77_FUNC(fcvsptfqmr, FCVSPTFQMR)
-#define FCV_SPTFQMRREINIT  F77_FUNC(fcvsptfqmrreinit, FCVSPTFQMRREINIT)
-#define FCV_SPBCG          F77_FUNC(fcvspbcg, FCVSPBCG)
-#define FCV_SPBCGREINIT    F77_FUNC(fcvspbcgreinit, FCVSPBCGREINIT)
-#define FCV_SPGMR          F77_FUNC(fcvspgmr, FCVSPGMR)
-#define FCV_SPGMRREINIT    F77_FUNC(fcvspgmrreinit, FCVSPGMRREINIT)
-#define FCV_SPILSSETJAC    F77_FUNC(fcvspilssetjac, FCVSPILSSETJAC)
-#define FCV_SPILSSETPREC   F77_FUNC(fcvspilssetprec, FCVSPILSSETPREC)
-#define FCV_CVODE          F77_FUNC(fcvode, FCVODE)
-#define FCV_DKY            F77_FUNC(fcvdky, FCVDKY)
-#define FCV_FREE           F77_FUNC(fcvfree, FCVFREE)
-#define FCV_FUN            F77_FUNC(fcvfun, FCVFUN)
-#define FCV_DJAC           F77_FUNC(fcvdjac, FCVDJAC)
-#define FCV_BJAC           F77_FUNC(fcvbjac, FCVBJAC)
-#define FCV_PSOL           F77_FUNC(fcvpsol, FCVPSOL)
-#define FCV_PSET           F77_FUNC(fcvpset, FCVPSET)
-#define FCV_JTIMES         F77_FUNC(fcvjtimes, FCVJTIMES)
-#define FCV_EWT            F77_FUNC(fcvewt, FCVEWT)
-#define FCV_GETERRWEIGHTS  F77_FUNC(fcvgeterrweights, FCVGETERRWEIGHTS)
-#define FCV_GETESTLOCALERR F77_FUNC(fcvgetestlocalerr, FCVGETESTLOCALERR)
+#define FCV_MALLOC         SUNDIALS_F77_FUNC(fcvmalloc, FCVMALLOC)
+#define FCV_REINIT         SUNDIALS_F77_FUNC(fcvreinit, FCVREINIT)
+#define FCV_SETIIN         SUNDIALS_F77_FUNC(fcvsetiin, FCVSETIIN)
+#define FCV_SETRIN         SUNDIALS_F77_FUNC(fcvsetrin, FCVSETRIN)
+#define FCV_EWTSET         SUNDIALS_F77_FUNC(fcvewtset, FCVEWTSET)
+#define FCV_DIAG           SUNDIALS_F77_FUNC(fcvdiag, FCVDIAG)
+#define FCV_DENSE          SUNDIALS_F77_FUNC(fcvdense, FCVDENSE)
+#define FCV_DENSESETJAC    SUNDIALS_F77_FUNC(fcvdensesetjac, FCVDENSESETJAC)
+#define FCV_BAND           SUNDIALS_F77_FUNC(fcvband, FCVBAND)
+#define FCV_BANDSETJAC     SUNDIALS_F77_FUNC(fcvbandsetjac, FCVBANDSETJAC)
+#define FCV_LAPACKDENSE    SUNDIALS_F77_FUNC(fcvlapackdense, FCVLAPACKDENSE)
+#define FCV_LAPACKDENSESETJAC   SUNDIALS_F77_FUNC(fcvlapackdensesetjac, FCVLAPACKDENSESETJAC)
+#define FCV_LAPACKBAND     SUNDIALS_F77_FUNC(fcvlapackband, FCVLAPACKBAND)
+#define FCV_LAPACKBANDSETJAC    SUNDIALS_F77_FUNC(fcvlapackbandsetjac, FCVLAPACKBANDSETJAC)
+#define FCV_SPTFQMR        SUNDIALS_F77_FUNC(fcvsptfqmr, FCVSPTFQMR)
+#define FCV_SPTFQMRREINIT  SUNDIALS_F77_FUNC(fcvsptfqmrreinit, FCVSPTFQMRREINIT)
+#define FCV_SPBCG          SUNDIALS_F77_FUNC(fcvspbcg, FCVSPBCG)
+#define FCV_SPBCGREINIT    SUNDIALS_F77_FUNC(fcvspbcgreinit, FCVSPBCGREINIT)
+#define FCV_SPGMR          SUNDIALS_F77_FUNC(fcvspgmr, FCVSPGMR)
+#define FCV_SPGMRREINIT    SUNDIALS_F77_FUNC(fcvspgmrreinit, FCVSPGMRREINIT)
+#define FCV_SPILSSETJAC    SUNDIALS_F77_FUNC(fcvspilssetjac, FCVSPILSSETJAC)
+#define FCV_SPILSSETPREC   SUNDIALS_F77_FUNC(fcvspilssetprec, FCVSPILSSETPREC)
+#define FCV_CVODE          SUNDIALS_F77_FUNC(fcvode, FCVODE)
+#define FCV_DKY            SUNDIALS_F77_FUNC(fcvdky, FCVDKY)
+#define FCV_FREE           SUNDIALS_F77_FUNC(fcvfree, FCVFREE)
+#define FCV_FUN            SUNDIALS_F77_FUNC(fcvfun, FCVFUN)
+#define FCV_DJAC           SUNDIALS_F77_FUNC(fcvdjac, FCVDJAC)
+#define FCV_BJAC           SUNDIALS_F77_FUNC(fcvbjac, FCVBJAC)
+#define FCV_PSOL           SUNDIALS_F77_FUNC(fcvpsol, FCVPSOL)
+#define FCV_PSET           SUNDIALS_F77_FUNC(fcvpset, FCVPSET)
+#define FCV_JTIMES         SUNDIALS_F77_FUNC(fcvjtimes, FCVJTIMES)
+#define FCV_EWT            SUNDIALS_F77_FUNC(fcvewt, FCVEWT)
+#define FCV_GETERRWEIGHTS  SUNDIALS_F77_FUNC(fcvgeterrweights, FCVGETERRWEIGHTS)
+#define FCV_GETESTLOCALERR SUNDIALS_F77_FUNC(fcvgetestlocalerr, FCVGETESTLOCALERR)
 
-#elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_LOWER)
-
-#define FCV_MALLOC         fcvmalloc
-#define FCV_REINIT         fcvreinit
-#define FCV_SETIIN         fcvsetiin
-#define FCV_SETRIN         fcvsetrin
-#define FCV_EWTSET         fcvewtset
-#define FCV_DIAG           fcvdiag
-#define FCV_DENSE          fcvdense
-#define FCV_DENSESETJAC    fcvdensesetjac
-#define FCV_BAND           fcvband
-#define FCV_BANDSETJAC     fcvbandsetjac
-#define FCV_SPTFQMR        fcvsptfqmr
-#define FCV_SPTFQMRREINIT  fcvsptfqmrreinit
-#define FCV_SPBCG          fcvspbcg
-#define FCV_SPBCGREINIT    fcvspbcgreinit
-#define FCV_SPGMR          fcvspgmr
-#define FCV_SPGMRREINIT    fcvspgmrreinit
-#define FCV_SPILSSETJAC    fcvspilssetjac
-#define FCV_SPILSSETPREC   fcvspilssetprec
-#define FCV_CVODE          fcvode
-#define FCV_DKY            fcvdky
-#define FCV_FREE           fcvfree
-#define FCV_FUN            fcvfun
-#define FCV_DJAC           fcvdjac
-#define FCV_BJAC           fcvbjac
-#define FCV_PSOL           fcvpsol
-#define FCV_PSET           fcvpset
-#define FCV_JTIMES         fcvjtimes
-#define FCV_EWT            fcvewt
-#define FCV_GETERRWEIGHTS  fcvgeterrweights
-#define FCV_GETESTLOCALERR fcvgetestlocalerr
-
-#elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_UPPER)
-
-#define FCV_MALLOC         FCVMALLOC
-#define FCV_REINIT         FCVREINIT
-#define FCV_SETIIN         FCVSETIIN
-#define FCV_SETRIN         FCVSETRIN
-#define FCV_EWTSET         FCVEWTSET
-#define FCV_DIAG           FCVDIAG
-#define FCV_DENSE          FCVDENSE
-#define FCV_DENSESETJAC    FCVDENSESETJAC
-#define FCV_BAND           FCVBAND
-#define FCV_BANDSETJAC     FCVBANDSETJAC
-#define FCV_SPTFQMR        FCVSPTFQMR
-#define FCV_SPTFQMRREINIT  FCVSPTFQMRREINIT
-#define FCV_SPBCG          FCVSPBCG
-#define FCV_SPBCGREINIT    FCVSPBCGREINIT
-#define FCV_SPGMR          FCVSPGMR
-#define FCV_SPGMRREINIT    FCVSPGMRREINIT
-#define FCV_SPILSSETJAC    FCVSPILSSETJAC
-#define FCV_SPILSSETPREC   FCVSPILSSETPREC
-#define FCV_CVODE          FCVODE
-#define FCV_DKY            FCVDKY
-#define FCV_FREE           FCVFREE
-#define FCV_FUN            FCVFUN
-#define FCV_DJAC           FCVDJAC
-#define FCV_BJAC           FCVBJAC
-#define FCV_PSOL           FCVPSOL
-#define FCV_PSET           FCVPSET
-#define FCV_JTIMES         FCVJTIMES
-#define FCV_EWT            FCVEWT
-#define FCV_GETERRWEIGHTS  FCVGETERRWEIGHTS
-#define FCV_GETESTLOCALERR FCVGETESTLOCALERR
-
-#elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_LOWER)
+#else
 
 #define FCV_MALLOC         fcvmalloc_
 #define FCV_REINIT         fcvreinit_
@@ -641,6 +609,10 @@ extern "C" {
 #define FCV_DENSESETJAC    fcvdensesetjac_
 #define FCV_BAND           fcvband_
 #define FCV_BANDSETJAC     fcvbandsetjac_
+#define FCV_LAPACKDENSE    fcvlapackdense_
+#define FCV_LAPACKDENSESETJAC   fcvlapackdensesetjac_
+#define FCV_LAPACKBAND     fcvlapackband_
+#define FCV_LAPACKBANDSETJAC    fcvlapackbandsetjac_
 #define FCV_SPTFQMR        fcvsptfqmr_
 #define FCV_SPTFQMRREINIT  fcvsptfqmrreinit_
 #define FCV_SPBCG          fcvspbcg_
@@ -661,105 +633,6 @@ extern "C" {
 #define FCV_EWT            fcvewt_
 #define FCV_GETERRWEIGHTS  fcvgeterrweights_
 #define FCV_GETESTLOCALERR fcvgetestlocalerr_
-
-#elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_UPPER)
-
-#define FCV_MALLOC         FCVMALLOC_
-#define FCV_REINIT         FCVREINIT_
-#define FCV_SETIIN         FCVSETIIN_
-#define FCV_SETRIN         FCVSETRIN_
-#define FCV_EWTSET         FCVEWTSET_
-#define FCV_DIAG           FCVDIAG_
-#define FCV_DENSE          FCVDENSE_
-#define FCV_DENSESETJAC    FCVDENSESETJAC_
-#define FCV_BAND           FCVBAND_
-#define FCV_BANDSETJAC     FCVBANDSETJAC_
-#define FCV_SPTFQMR        FCVSPTFQMR_
-#define FCV_SPTFQMRREINIT  FCVSPTFQMRREINIT_
-#define FCV_SPBCG          FCVSPBCG_
-#define FCV_SPBCGREINIT    FCVSPBCGREINIT_
-#define FCV_SPGMR          FCVSPGMR_
-#define FCV_SPGMRREINIT    FCVSPGMRREINIT_
-#define FCV_SPILSSETJAC    FCVSPILSSETJAC_
-#define FCV_SPILSSETPREC   FCVSPILSSETPREC_
-#define FCV_CVODE          FCVODE_
-#define FCV_DKY            FCVDKY_
-#define FCV_FREE           FCVFREE_
-#define FCV_FUN            FCVFUN_
-#define FCV_DJAC           FCVDJAC_
-#define FCV_BJAC           FCVBJAC_
-#define FCV_PSOL           FCVPSOL_
-#define FCV_PSET           FCVPSET_
-#define FCV_JTIMES         FCVJTIMES_
-#define FCV_EWT            FCVEWT_
-#define FCV_GETERRWEIGHTS  FCVGETERRWEIGHTS_
-#define FCV_GETESTLOCALERR FCVGETESTLOCALERR_
-
-#elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_LOWER)
-
-#define FCV_MALLOC         fcvmalloc__
-#define FCV_REINIT         fcvreinit__
-#define FCV_SETIIN         fcvsetiin__
-#define FCV_SETRIN         fcvsetrin__
-#define FCV_EWTSET         fcvewtset__
-#define FCV_DIAG           fcvdiag__
-#define FCV_DENSE          fcvdense__
-#define FCV_DENSESETJAC    fcvdensesetjac__
-#define FCV_BAND           fcvband__
-#define FCV_BANDSETJAC     fcvbandsetjac__
-#define FCV_SPTFQMR        fcvsptfqmr__
-#define FCV_SPTFQMRREINIT  fcvsptfqmrreinit__
-#define FCV_SPBCG          fcvspbcg__
-#define FCV_SPBCGREINIT    fcvspbcgreinit__
-#define FCV_SPGMR          fcvspgmr__
-#define FCV_SPGMRREINIT    fcvspgmrreinit__
-#define FCV_SPILSSETJAC    fcvspilssetjac__
-#define FCV_SPILSSETPREC   fcvspilssetprec__
-#define FCV_CVODE          fcvode__
-#define FCV_DKY            fcvdky__
-#define FCV_FREE           fcvfree__
-#define FCV_FUN            fcvfun__
-#define FCV_DJAC           fcvdjac__
-#define FCV_BJAC           fcvbjac__
-#define FCV_PSOL           fcvpsol__
-#define FCV_PSET           fcvpset__
-#define FCV_JTIMES         fcvjtimes__
-#define FCV_EWT            fcvewt__
-#define FCV_GETERRWEIGHTS  fcvgeterrweights__
-#define FCV_GETESTLOCALERR fcvgetestlocalerr__
-
-#elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_UPPER)
-
-#define FCV_MALLOC         FCVMALLOC__
-#define FCV_REINIT         FCVREINIT__
-#define FCV_SETIIN         FCVSETIIN__
-#define FCV_SETRIN         FCVSETRIN__
-#define FCV_EWTSET         FCVEWTSET__
-#define FCV_DIAG           FCVDIAG__
-#define FCV_DENSE          FCVDENSE__
-#define FCV_DENSESETJAC    FCVDENSESETJAC__
-#define FCV_BAND           FCVBAND__
-#define FCV_BANDSETJAC     FCVBANDSETJAC__
-#define FCV_SPTFQMR        FCVSPTFQMR__
-#define FCV_SPTFQMRREINIT  FCVSPTFQMRREINIT__
-#define FCV_SPBCG          FCVSPBCG__
-#define FCV_SPBCGREINIT    FCVSPBCGREINIT__
-#define FCV_SPGMR          FCVSPGMR__
-#define FCV_SPGMRREINIT    FCVSPGMRREINIT__
-#define FCV_SPILSSETJAC    FCVSPILSSETJAC__
-#define FCV_SPILSSETPREC   FCVSPILSSETPREC__
-#define FCV_CVODE          FCVODE__
-#define FCV_DKY            FCVDKY__
-#define FCV_FREE           FCVFREE__
-#define FCV_FUN            FCVFUN__
-#define FCV_DJAC           FCVDJAC__
-#define FCV_BJAC           FCVBJAC__
-#define FCV_PSOL           FCVPSOL__
-#define FCV_PSET           FCVPSET__
-#define FCV_JTIMES         FCVJTIMES__
-#define FCV_EWT            FCVEWT__
-#define FCV_GETERRWEIGHTS  FCVGETERRWEIGHTS__
-#define FCV_GETESTLOCALERR FCVGETESTLOCALERR__
 
 #endif
 
@@ -791,11 +664,16 @@ extern "C" {
 
   void FCV_DIAG(int *ier);
 
-  void FCV_DENSE(long int *neq, int *ier);
+  void FCV_DENSE(int *neq, int *ier);
   void FCV_DENSESETJAC(int *flag, int *ier);
 
-  void FCV_BAND(long int *neq, long int *mupper, long int *mlower, int *ier);
+  void FCV_BAND(int *neq, int *mupper, int *mlower, int *ier);
   void FCV_BANDSETJAC(int *flag, int *ier);
+
+  void FCV_LAPACKDENSE(int *neq, int *ier);
+  void FCV_LAPACKDENSESETJAC(int *flag, int *ier);
+  void FCV_LAPACKBAND(int *neq, int *mupper, int *mlower, int *ier);
+  void FCV_LAPACKBANDSETJAC(int *flag, int *ier);
 
   void FCV_SPGMR(int *pretype, int *gstype, int *maxl, realtype *delt, int *ier);
   void FCV_SPGMRREINIT(int *pretype, int *gstype, realtype *delt, int *ier);
@@ -821,31 +699,41 @@ extern "C" {
 
   /* Prototypes: Functions Called by the CVODE Solver */
   
-  int FCVf(realtype t, N_Vector y, N_Vector ydot, void *f_data);
+  int FCVf(realtype t, N_Vector y, N_Vector ydot, void *user_data);
   
-  int FCVDenseJac(long int N, DenseMat J, realtype t, 
-                  N_Vector y, N_Vector fy, void *jac_data,
+  int FCVDenseJac(int N, realtype t, 
+                  N_Vector y, N_Vector fy, 
+                  DlsMat J, void *user_data,
                   N_Vector vtemp1, N_Vector vtemp2, N_Vector vtemp3);
   
-  int FCVBandJac(long int N, long int mupper, long int mlower,
-                 BandMat J, realtype t, N_Vector y, N_Vector fy,
-                 void *jac_data,
+  int FCVBandJac(int N, int mupper, int mlower,
+                 realtype t, N_Vector y, N_Vector fy,
+                 DlsMat J, void *user_data,
                  N_Vector vtemp1, N_Vector vtemp2, N_Vector vtemp3);
   
+  int FCVLapackDenseJac(int N, realtype t,
+                        N_Vector y, N_Vector fy, 
+                        DlsMat Jac, void *user_data,
+                        N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
+  int FCVLapackBandJac(int N, int mupper, int mlower,
+                       realtype t, N_Vector y, N_Vector fy, 
+                       DlsMat Jac, void *user_data,
+                       N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
+
   int FCVPSet(realtype tn, N_Vector y,N_Vector fy, booleantype jok,
-              booleantype *jcurPtr, realtype gamma, void *P_data,
+              booleantype *jcurPtr, realtype gamma, void *user_data,
               N_Vector vtemp1, N_Vector vtemp2, N_Vector vtemp3);
   
   int FCVPSol(realtype tn, N_Vector y, N_Vector fy, 
               N_Vector r, N_Vector z,
               realtype gamma, realtype delta,
-              int lr, void *P_data, N_Vector vtemp);
+              int lr, void *user_data, N_Vector vtemp);
   
   int FCVJtimes(N_Vector v, N_Vector Jv, realtype t, 
                 N_Vector y, N_Vector fy,
-                void *jac_data, N_Vector work);
+                void *user_data, N_Vector work);
   
-  int FCVEwtSet(N_Vector y, N_Vector ewt, void *e_data);
+  int FCVEwtSet(N_Vector y, N_Vector ewt, void *user_data);
 
   /* Declarations for global variables shared amongst various routines */
 
@@ -860,7 +748,8 @@ extern "C" {
   /* Linear solver IDs */
 
   enum { CV_LS_DENSE = 1, CV_LS_BAND = 2, CV_LS_DIAG = 3,
-	 CV_LS_SPGMR = 4, CV_LS_SPBCG = 5, CV_LS_SPTFQMR = 6 };
+         CV_LS_LAPACKDENSE = 4, CV_LS_LAPACKBAND = 5,
+	 CV_LS_SPGMR = 6, CV_LS_SPBCG = 7, CV_LS_SPTFQMR = 8 };
 
 #ifdef __cplusplus
 }

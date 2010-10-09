@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:37 $
+ * $Revision: 1.3 $
+ * $Date: 2007/04/30 19:29:01 $
  * -----------------------------------------------------------------
  * Programmer(s): Allan Taylor, Alan Hindmarsh and
  *                Radu Serban @ LLNL
@@ -59,8 +59,11 @@ extern void FK_PSOL(realtype*, realtype*, realtype*, realtype*,
 
 void FKIN_SPILSSETPREC(int *flag, int *ier)
 {
-  if ((*flag) == 0) KINSpilsSetPreconditioner(KIN_kinmem, NULL, NULL, NULL);
-  else              KINSpilsSetPreconditioner(KIN_kinmem, FKINPSet, FKINPSol, NULL);
+  if ((*flag) == 0) {
+    *ier = KINSpilsSetPreconditioner(KIN_kinmem, NULL, NULL);
+  } else {
+    *ier = KINSpilsSetPreconditioner(KIN_kinmem, FKINPSet, FKINPSol);
+  }
 
   return;
 }
@@ -76,7 +79,7 @@ void FKIN_SPILSSETPREC(int *flag, int *ier)
 
 int FKINPSet(N_Vector uu, N_Vector uscale,
              N_Vector fval, N_Vector fscale,
-             void *P_data,
+             void *user_data,
              N_Vector vtemp1, N_Vector vtemp2)
 {
   realtype *udata, *uscaledata, *fdata, *fscaledata, *vtemp1data, *vtemp2data;
@@ -110,7 +113,7 @@ int FKINPSet(N_Vector uu, N_Vector uscale,
 
 int FKINPSol(N_Vector uu, N_Vector uscale, 
              N_Vector fval, N_Vector fscale, 
-             N_Vector vv, void *P_data,
+             N_Vector vv, void *user_data,
              N_Vector ftem)
 {
   realtype *udata, *uscaledata, *fdata, *fscaledata, *vvdata, *ftemdata;

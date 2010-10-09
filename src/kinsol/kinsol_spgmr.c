@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:37 $
+ * $Revision: 1.5 $
+ * $Date: 2007/11/26 16:20:01 $
  * -----------------------------------------------------------------
  * Programmer(s): Radu Serban and Aaron Collier @ LLNL
  * -----------------------------------------------------------------
@@ -54,11 +54,10 @@ static void KINSpgmrFree(KINMem kin_mem);
  * -----------------------------------------------------------------
  */
 
-#define uround         (kin_mem->kin_uround)
 #define nni            (kin_mem->kin_nni)
 #define nnilset        (kin_mem->kin_nnilset)
 #define func           (kin_mem->kin_func)
-#define f_data         (kin_mem->kin_f_data)
+#define user_data      (kin_mem->kin_user_data)
 #define printfl        (kin_mem->kin_printfl)
 #define linit          (kin_mem->kin_linit)
 #define lsetup         (kin_mem->kin_lsetup)
@@ -92,6 +91,11 @@ static void KINSpgmrFree(KINMem kin_mem);
 #define nfes      (kinspils_mem->s_nfes)
 #define new_uu    (kinspils_mem->s_new_uu)
 #define spils_mem (kinspils_mem->s_spils_mem)
+
+#define jtimesDQ  (kinspils_mem->s_jtimesDQ)
+#define jtimes    (kinspils_mem->s_jtimes)
+#define J_data    (kinspils_mem->s_J_data)
+
 #define last_flag (kinspils_mem->s_last_flag)
 
 /*
@@ -106,20 +110,8 @@ static void KINSpgmrFree(KINMem kin_mem);
  * memory for a structure of type KINSpilsMemRec and sets the
  * kin_lmem field in *kinmem to the address of this structure. It
  * also calls SpgmrMalloc to allocate memory for the module
- * SPGMR. In summary, KINSpgmr sets the following fields in the
- * KINSpilsMemRec structure:
- *
- *  s_pretype   = PREC_NONE
- *  s_gstype    = MODIFIED_GS
- *  s_maxl      = KINSPILS_MAXL  if maxl <= 0
- *              = maxl           if maxl > 0
- *  s_maxlrst   = 0 (default)
- *  s_last_flag = KINSPILS_SUCCESS
- *  s_pset      = NULL
- *  s_psolve    = NULL
- *  s_P_data    = NULL
- *  s_jtimes    = NULL
- *  s_J_data    = NULL
+ * SPGMR. In summary, KINSpgmr sets various fields in the
+ * KINSpilsMemRec structure.
  * -----------------------------------------------------------------
  */
 
@@ -159,7 +151,7 @@ int KINSpgmr(void *kinmem, int maxl)
 
   /* get memory for KINSpilsMemRec */
   kinspils_mem = NULL;
-  kinspils_mem = (KINSpilsMem) malloc(sizeof(KINSpilsMemRec));
+  kinspils_mem = (KINSpilsMem) malloc(sizeof(struct KINSpilsMemRec));
   if (kinspils_mem == NULL){
     KINProcessError(NULL, KINSPILS_MEM_FAIL, "KINSPILS", "KINSpgmr", MSGS_MEM_FAIL);
     return(KINSPILS_MEM_FAIL);  
@@ -173,19 +165,27 @@ int KINSpgmr(void *kinmem, int maxl)
   maxl1 = (maxl <= 0) ? KINSPILS_MAXL : maxl;
   kinspils_mem->s_maxl = maxl1;  
 
-  /* set default values for the rest of the SPGMR parameters */
+  /* Set defaults for Jacobian-related fileds */
+
+  jtimesDQ = TRUE;
+  jtimes   = NULL;
+  J_data   = NULL;
+
+  /* Set defaults for preconditioner-related fields */
+
+  kinspils_mem->s_pset   = NULL;
+  kinspils_mem->s_psolve = NULL;
+  kinspils_mem->s_pfree  = NULL;
+  kinspils_mem->s_P_data = kin_mem->kin_user_data;
+
+  /* Set default values for the rest of the SPGMR parameters */
 
   kinspils_mem->s_pretype   = PREC_NONE;
   kinspils_mem->s_gstype    = MODIFIED_GS;
   kinspils_mem->s_maxlrst   = 0;
   kinspils_mem->s_last_flag = KINSPILS_SUCCESS;
-  kinspils_mem->s_pset      = NULL;
-  kinspils_mem->s_psolve    = NULL;
-  kinspils_mem->s_P_data    = NULL;
-  kinspils_mem->s_jtimes    = NULL;
-  kinspils_mem->s_J_data    = NULL;
 
-  /* call SpgmrMalloc to allocate workspace for SPGMR */
+  /* Call SpgmrMalloc to allocate workspace for SPGMR */
 
   /* vec_tmpl passed as template vector */
   spgmr_mem = NULL;
@@ -220,8 +220,6 @@ int KINSpgmr(void *kinmem, int maxl)
 #define pset    (kinspils_mem->s_pset)
 #define psolve  (kinspils_mem->s_psolve)
 #define P_data  (kinspils_mem->s_P_data)
-#define jtimes  (kinspils_mem->s_jtimes)
-#define J_data  (kinspils_mem->s_J_data)
 
 /*
  * -----------------------------------------------------------------
@@ -256,11 +254,13 @@ static int KINSpgmrInit(KINMem kin_mem)
 
   setupNonNull = (psolve != NULL) && (pset != NULL);
 
-  /* if jtimes is NULL at this time, set it to private DQ routine */
+  /* Set Jacobian-related fields, based on jtimesDQ */
 
-  if (jtimes == NULL) {
+  if (jtimesDQ) {
     jtimes = KINSpilsDQJtimes;
     J_data = kin_mem;
+  } else {
+    J_data = user_data;
   }
 
   last_flag = KINSPILS_SUCCESS;
@@ -417,9 +417,11 @@ static void KINSpgmrFree(KINMem kin_mem)
   SpgmrMem spgmr_mem;
 
   kinspils_mem = (KINSpilsMem) lmem;
-  spgmr_mem = (SpgmrMem) spils_mem;
 
+  spgmr_mem = (SpgmrMem) spils_mem;
   SpgmrFree(spgmr_mem);
-  free(lmem);
-  lmem = NULL;
+
+  if (kinspils_mem->s_pfree != NULL) (kinspils_mem->s_pfree)(kin_mem);
+
+  free(kinspils_mem); kinspils_mem = NULL;
 }

@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.3 $
- * $Date: 2006/07/19 22:10:43 $
+ * $Revision: 1.9 $
+ * $Date: 2008/03/18 14:49:29 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Aaron Collier and Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -75,9 +75,7 @@ void FIDA_MALLOC(realtype *t0, realtype *yy0, realtype *yp0,
                  long int *ipar, realtype *rpar,
                  int *ier)
 {
-  int itol;
   N_Vector Vatol;
-  void *atolptr;
   FIDAUserData IDA_userdata;
 
   *ier = 0;
@@ -93,7 +91,6 @@ void FIDA_MALLOC(realtype *t0, realtype *yy0, realtype *yp0,
   /* Initialize all pointers to NULL */
   IDA_idamem = NULL;
   Vatol = NULL;
-  atolptr = NULL;
   F2C_IDA_ypvec = F2C_IDA_ewtvec = NULL;
 
   /* Create IDA object */
@@ -113,7 +110,7 @@ void FIDA_MALLOC(realtype *t0, realtype *yy0, realtype *yp0,
   IDA_userdata->rpar = rpar;
   IDA_userdata->ipar = ipar;
 
-  *ier = IDASetRdata(IDA_idamem, IDA_userdata);
+  *ier = IDASetUserData(IDA_idamem, IDA_userdata);
   if(*ier != IDA_SUCCESS) {
     free(IDA_userdata); IDA_userdata = NULL;
     *ier = -1;
@@ -132,37 +129,8 @@ void FIDA_MALLOC(realtype *t0, realtype *yy0, realtype *yp0,
   }
   N_VSetArrayPointer(yp0, F2C_IDA_ypvec);
 
-  /* Treat absolute tolerances */
-  itol = -1;
-  switch (*iatol) {
-  case 1:
-    itol = IDA_SS;
-    atolptr = (void *) atol;
-    break;
-  case 2:
-    itol = IDA_SV;
-    Vatol = NULL;
-    Vatol= N_VCloneEmpty(F2C_IDA_vec);
-    if (Vatol == NULL) {
-      free(IDA_userdata); IDA_userdata = NULL;
-      N_VDestroy(F2C_IDA_ypvec);
-      *ier = -1;
-      return;
-    }
-    N_VSetArrayPointer(atol, Vatol);
-    atolptr = (void *) Vatol;
-    break;
-  case 3:
-    itol = IDA_WF;
-    break;
-  }
-
-  /* Call IDAMalloc */
-  *ier = IDAMalloc(IDA_idamem, (IDAResFn) FIDAresfn, *t0, F2C_IDA_vec, F2C_IDA_ypvec,
-		   itol, *rtol, atolptr);
-
-  /* destroy Vatol if allocated */
-  if (itol == IDA_SV) N_VDestroy(Vatol);
+  /* Call IDAInit */
+  *ier = IDAInit(IDA_idamem, FIDAresfn, *t0, F2C_IDA_vec, F2C_IDA_ypvec);
 
   /* Reset data pointers */
   N_VSetArrayPointer(NULL, F2C_IDA_vec);
@@ -171,6 +139,32 @@ void FIDA_MALLOC(realtype *t0, realtype *yy0, realtype *yp0,
   /* On failure, clean-up and exit */
   if (*ier != IDA_SUCCESS) {
     N_VDestroy(F2C_IDA_ypvec);
+    free(IDA_userdata); IDA_userdata = NULL;
+    *ier = -1;
+    return;
+  }
+
+  /* Set tolerances */
+  switch (*iatol) {
+  case 1:
+    *ier = IDASStolerances(IDA_idamem, *rtol, *atol);
+    break;
+  case 2:
+    Vatol = NULL;
+    Vatol= N_VCloneEmpty(F2C_IDA_vec);
+    if (Vatol == NULL) {
+      free(IDA_userdata); IDA_userdata = NULL;
+      *ier = -1;
+      return;
+    }
+    N_VSetArrayPointer(atol, Vatol);
+    *ier = IDASVtolerances(IDA_idamem, *rtol, Vatol);
+    N_VDestroy(Vatol);
+    break;
+  }
+
+  /* On failure, clean-up and exit */
+  if (*ier != IDA_SUCCESS) {
     free(IDA_userdata); IDA_userdata = NULL;
     *ier = -1;
     return;
@@ -195,14 +189,11 @@ void FIDA_REINIT(realtype *t0, realtype *yy0, realtype *yp0,
                  int *iatol, realtype *rtol, realtype *atol,
                  int *ier)
 {
-  int itol;
   N_Vector Vatol;
-  void *atolptr;
 
   *ier = 0;
 
   /* Initialize all pointers to NULL */
-  atolptr = NULL;
   Vatol = NULL;
 
   /* Attach user's yy0 to F2C_IDA_vec */
@@ -211,39 +202,36 @@ void FIDA_REINIT(realtype *t0, realtype *yy0, realtype *yp0,
   /* Attach user's yp0 to F2C_IDA_ypvec */
   N_VSetArrayPointer(yp0, F2C_IDA_ypvec);
 
-  /* Treat absolute tolerances */
-  itol = -1;
+  /* Call IDAReInit */
+  *ier = IDAReInit(IDA_idamem, *t0, F2C_IDA_vec, F2C_IDA_ypvec);
+
+  /* Reset data pointers */
+  N_VSetArrayPointer(NULL, F2C_IDA_vec);
+  N_VSetArrayPointer(NULL, F2C_IDA_ypvec);
+
+  /* On failure, exit */
+  if (*ier != IDA_SUCCESS) {
+    *ier = -1;
+    return;
+  }
+
+  /* Set tolerances */
   switch (*iatol) {
   case 1:
-    itol = IDA_SS;
-    atolptr = atol;
+    *ier = IDASStolerances(IDA_idamem, *rtol, *atol);
     break;
   case 2:
-    itol = IDA_SV;
     Vatol = NULL;
-    Vatol = N_VCloneEmpty(F2C_IDA_vec);
+    Vatol= N_VCloneEmpty(F2C_IDA_vec);
     if (Vatol == NULL) {
       *ier = -1;
       return;
     }
     N_VSetArrayPointer(atol, Vatol);
-    atolptr = (void *) Vatol;
-    break;
-  case 3:
-    itol = IDA_WF;
+    *ier = IDASVtolerances(IDA_idamem, *rtol, Vatol);
+    N_VDestroy(Vatol);
     break;
   }
-
-  /* Call IDAReInit */
-  *ier = IDAReInit(IDA_idamem, (IDAResFn) FIDAresfn, *t0, F2C_IDA_vec, F2C_IDA_ypvec,
-		   itol, *rtol, atolptr);
-
-  /* destroy Vatol if allocated */
-  if (itol == IDA_SV) N_VDestroy(Vatol);
-
-  /* Reset data pointers */
-  N_VSetArrayPointer(NULL, F2C_IDA_vec);
-  N_VSetArrayPointer(NULL, F2C_IDA_ypvec);
 
   /* On failure, exit */
   if (*ier != IDA_SUCCESS) {
@@ -350,17 +338,13 @@ void FIDA_TOLREINIT(int *iatol, realtype *rtol, realtype *atol, int *ier)
 {
   int itol;
   N_Vector Vatol=NULL;
-  void *atolptr;
 
   *ier = 0;
 
   itol = -1;
   if (*iatol == 1) {
-    itol = IDA_SS;
-    atolptr = atol;
-  }
-  else {
-    itol = IDA_SV;
+    *ier = IDASStolerances(IDA_idamem, *rtol, *atol);
+  } else {
     Vatol = NULL;
     Vatol = N_VCloneEmpty(F2C_IDA_vec);
     if (Vatol == NULL) {
@@ -368,12 +352,9 @@ void FIDA_TOLREINIT(int *iatol, realtype *rtol, realtype *atol, int *ier)
       return;
     }
     N_VSetArrayPointer(atol, Vatol);
-    atolptr = (void *) Vatol; 
+    *ier = IDASVtolerances(IDA_idamem, *rtol, Vatol);
+    N_VDestroy(Vatol);
   }
-
-  *ier = IDASetTolerances(IDA_idamem, itol, *rtol, atolptr);
-
-  if (itol == IDA_SV) N_VDestroy(Vatol);
 
   return;
 }
@@ -475,7 +456,7 @@ void FIDA_SPGMR(int *maxl, int *gstype, int *maxrs,
 
 /*************************************************/
 
-void FIDA_DENSE(long int *neq, int *ier)
+void FIDA_DENSE(int *neq, int *ier)
 {
 
   *ier = 0;
@@ -489,7 +470,7 @@ void FIDA_DENSE(long int *neq, int *ier)
 
 /*************************************************/
 
-void FIDA_BAND(long int *neq, long int *mupper, long int *mlower, int *ier)
+void FIDA_BAND(int *neq, int *mupper, int *mlower, int *ier)
 {
 
   *ier = 0;
@@ -637,16 +618,13 @@ void FIDA_SOLVE(realtype *tout, realtype *tret, realtype *yret,
   
   switch(IDA_ls) {
   case IDA_LS_DENSE:
-    IDADenseGetWorkSpace(IDA_idamem, &IDA_iout[12], &IDA_iout[13]);   /* LENRWLS, LENIWLS */
-    IDADenseGetLastFlag(IDA_idamem, (int *) &IDA_iout[14]);           /* LSTF */
-    IDADenseGetNumResEvals(IDA_idamem, &IDA_iout[15]);                /* NRE */
-    IDADenseGetNumJacEvals(IDA_idamem, &IDA_iout[16]);                /* NJE */
-    break;
   case IDA_LS_BAND:
-    IDABandGetWorkSpace(IDA_idamem, &IDA_iout[12], &IDA_iout[13]);    /* LENRWLS, LENIWLS */
-    IDABandGetLastFlag(IDA_idamem, (int *) &IDA_iout[14]);            /* LSTF */
-    IDABandGetNumResEvals(IDA_idamem, &IDA_iout[15]);                 /* NRE */
-    IDABandGetNumJacEvals(IDA_idamem, &IDA_iout[16]);                 /* NJE */
+  case IDA_LS_LAPACKDENSE:
+  case IDA_LS_LAPACKBAND:
+    IDADlsGetWorkSpace(IDA_idamem, &IDA_iout[12], &IDA_iout[13]);   /* LENRWLS, LENIWLS */
+    IDADlsGetLastFlag(IDA_idamem, (int *) &IDA_iout[14]);           /* LSTF */
+    IDADlsGetNumResEvals(IDA_idamem, &IDA_iout[15]);                /* NRE */
+    IDADlsGetNumJacEvals(IDA_idamem, &IDA_iout[16]);                /* NJE */
     break;
   case IDA_LS_SPGMR:
   case IDA_LS_SPBCG:
@@ -724,9 +702,9 @@ void FIDA_FREE(void)
 
   ida_mem = (IDAMem) IDA_idamem;
 
-  IDAFree(&IDA_idamem);
+  free(ida_mem->ida_user_data); ida_mem->ida_user_data = NULL;
 
-  free(ida_mem->ida_rdata); ida_mem->ida_rdata = NULL;
+  IDAFree(&IDA_idamem);
 
   /* Free F2C_IDA_vec */
   N_VSetArrayPointer(NULL, F2C_IDA_vec);
@@ -746,7 +724,7 @@ void FIDA_FREE(void)
 /*************************************************/
 
 int FIDAresfn(realtype t, N_Vector yy, N_Vector yp,
-	      N_Vector rr, void *res_data)
+	      N_Vector rr, void *user_data)
 {
   int ier;
   realtype *yy_data, *yp_data, *rr_data;
@@ -763,7 +741,7 @@ int FIDAresfn(realtype t, N_Vector yy, N_Vector yp,
   yp_data = N_VGetArrayPointer(yp);
   rr_data = N_VGetArrayPointer(rr);
 
-  IDA_userdata = (FIDAUserData) res_data;
+  IDA_userdata = (FIDAUserData) user_data;
 
   /* Call user-supplied routine */
   FIDA_RESFUN(&t, yy_data, yp_data, rr_data, 

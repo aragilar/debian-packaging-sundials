@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:35 $
+ * $Revision: 1.4 $
+ * $Date: 2007/04/30 19:29:00 $
  * ----------------------------------------------------------------- 
  * Programmers: Alan C. Hindmarsh and Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 #include <ida/ida_spils.h>
+#include "ida_impl.h"
 
 /* Types of iterative linear solvers */
 
@@ -41,7 +42,7 @@ extern "C" {
  * -----------------------------------------------------------------
  */
 
-typedef struct {
+typedef struct IDASpilsMemRec {
 
   int s_type;          /* type of scaled preconditioned iterative LS   */
 
@@ -74,23 +75,38 @@ typedef struct {
   N_Vector s_ypcur;    /* current yp vector in Newton iteration        */
   N_Vector s_rcur;     /* rcur = F(tn, ycur, ypcur)                    */
 
-  IDASpilsPrecSetupFn s_pset;     /* pset = user-supplied routine      */
-                                  /* to compute a preconditioner       */
+  void *s_spils_mem;   /* memory used by the generic solver            */
 
-  IDASpilsPrecSolveFn s_psolve;   /* psolve = user-supplied routine to */
-                                  /* solve preconditioner linear system*/
+  int s_last_flag;     /* last error return flag                       */
 
-  void *s_pdata;                  /* pdata passed to psolve and precond*/
+  /* Preconditioner computation
+   * (a) user-provided:
+   *     - pdata == user_data
+   *     - pfree == NULL (the user dealocates memory for f_data)
+   * (b) internal preconditioner module
+   *     - pdata == ida_mem
+   *     - pfree == set by the prec. module and called in IDASpilsFree
+   */
 
-  void *s_spils_mem;              /* memory used by the generic solver */
+  IDASpilsPrecSetupFn s_pset;
+  IDASpilsPrecSolveFn s_psolve;
+  void (*s_pfree)(IDAMem IDA_mem);
+  void *s_pdata;
+  
+  /* Jacobian times vector compuation
+   * (a) jtimes function provided by the user:
+   *     - jdata == user_data
+   *     - jtimesDQ == FALSE
+   * (b) internal jtimes
+   *     - jdata == ida_mem
+   *     - jtimesDQ == TRUE
+   */
 
-  IDASpilsJacTimesVecFn s_jtimes; /* Jacobian*vector routine           */ 
+  booleantype s_jtimesDQ;
+  IDASpilsJacTimesVecFn s_jtimes;
+  void *s_jdata;
 
-  void *s_jdata;                  /* data passed to Jtimes             */
-
-  int s_last_flag;                /* last error return flag            */
-
-} IDASpilsMemRec, *IDASpilsMem;
+} *IDASpilsMem;
 
 
 /*
@@ -110,7 +126,7 @@ int IDASpilsPSolve(void *ida_mem, N_Vector r, N_Vector z, int lr);
 int IDASpilsDQJtimes(realtype tt,
                      N_Vector yy, N_Vector yp, N_Vector rr,
                      N_Vector v, N_Vector Jv, 
-                     realtype c_j, void *jac_data, 
+                     realtype c_j, void *data, 
                      N_Vector work1, N_Vector work2);
 
 

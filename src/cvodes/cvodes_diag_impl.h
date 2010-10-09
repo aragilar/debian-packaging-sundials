@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:34 $
+ * $Revision: 1.4 $
+ * $Date: 2007/03/22 18:05:51 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -23,34 +23,34 @@ extern "C" {
 
 #include <cvodes/cvodes_diag.h>
 
-  /*
-   * -----------------------------------------------------------------
-   * Types: CVDiagMemRec, CVDiagMem
-   * -----------------------------------------------------------------
-   * The type CVDiagMem is pointer to a CVDiagMemRec.
-   * This structure contains CVDiag solver-specific data.
-   * -----------------------------------------------------------------
-   */
+/*
+ * -----------------------------------------------------------------
+ * Types: CVDiagMemRec, CVDiagMem
+ * -----------------------------------------------------------------
+ * The type CVDiagMem is pointer to a CVDiagMemRec.
+ * This structure contains CVDiag solver-specific data.
+ * -----------------------------------------------------------------
+ */
 
-  typedef struct {
+typedef struct {
 
-    realtype di_gammasv; /* gammasv = gamma at the last call to setup */
-    /* or solve                                  */
+  realtype di_gammasv; /* gammasv = gamma at the last call to setup */
+  /* or solve                                  */
 
-    N_Vector di_M;       /* M = (I - gamma J)^{-1} , gamma = h / l1   */
+  N_Vector di_M;       /* M = (I - gamma J)^{-1} , gamma = h / l1   */
 
-    N_Vector di_bit;     /* temporary storage vector                  */
+  N_Vector di_bit;     /* temporary storage vector                  */
 
-    N_Vector di_bitcomp; /* temporary storage vector                  */
+  N_Vector di_bitcomp; /* temporary storage vector                  */
 
-    long int di_nfeDI;   /* no. of calls to f due to difference 
-                            quotient diagonal Jacobian approximation  */
+  long int di_nfeDI;   /* no. of calls to f due to difference 
+			  quotient diagonal Jacobian approximation  */
 
-    int di_last_flag;    /* last error return flag                    */
+  int di_last_flag;    /* last error return flag                    */
 
-  } CVDiagMemRec, *CVDiagMem;
+} CVDiagMemRec, *CVDiagMem;
 
-  /* Error Messages */
+/* Error Messages */
 
 #define MSGDG_CVMEM_NULL "Integrator memory is NULL."
 #define MSGDG_MEM_FAIL "A memory request failed."
@@ -58,7 +58,8 @@ extern "C" {
 #define MSGDG_LMEM_NULL "CVDIAG memory is NULL."
 #define MSGDG_RHSFUNC_FAILED "The right-hand side routine failed in an unrecoverable manner."
 
-#define MSGDG_CAMEM_NULL "cvadj_mem = NULL illegal."
+#define MSGDG_NO_ADJ "Illegal attempt to call before calling CVodeAdjMalloc."
+#define MSGDG_BAD_WHICH "Illegal value for which."
 
 #ifdef __cplusplus
 }

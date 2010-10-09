@@ -1,10 +1,9 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.2 $
- * $Date: 2006/10/11 16:34:16 $
+ * $Revision: 1.8 $
+ * $Date: 2009/02/17 02:42:29 $
  * ----------------------------------------------------------------- 
- * Programmer(s): Alan C. Hindmarsh, Radu Serban and
- *                Aaron Collier @ LLNL
+ * Programmer(s): Alan C. Hindmarsh and Radu Serban @ LLNL
  * -----------------------------------------------------------------
  * Copyright (c) 2002, The Regents of the University of California.
  * Produced at the Lawrence Livermore National Laboratory.
@@ -26,12 +25,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "ida_impl.h"
+#include "ida_spils_impl.h"
+#include "ida_bbdpre_impl.h"
+
 #include <ida/ida_spgmr.h>
 #include <ida/ida_spbcgs.h>
 #include <ida/ida_sptfqmr.h>
-
-#include "ida_impl.h"
-#include "ida_bbdpre_impl.h"
 
 #include <sundials/sundials_math.h>
 
@@ -41,22 +41,32 @@
 
 /* Prototypes of IDABBDPrecSetup and IDABBDPrecSolve */
 
-int IDABBDPrecSetup(realtype tt,
-		    N_Vector yy, N_Vector yp, N_Vector rr,
-		    realtype c_j, void *prec_data,
-		    N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
+static int IDABBDPrecSetup(realtype tt,
+                           N_Vector yy, N_Vector yp, N_Vector rr,
+                           realtype c_j, void *prec_data,
+                           N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
  
-int IDABBDPrecSolve(realtype tt,
-		    N_Vector yy, N_Vector yp, N_Vector rr,
-		    N_Vector rvec, N_Vector zvec,
-		    realtype c_j, realtype delta, void *prec_data,
-                    N_Vector tmp);
+static int IDABBDPrecSolve(realtype tt,
+                           N_Vector yy, N_Vector yp, N_Vector rr,
+                           N_Vector rvec, N_Vector zvec,
+                           realtype c_j, realtype delta, void *prec_data,
+                           N_Vector tmp);
+
+/* Prototype for IDABBDPrecFree */
+
+static void IDABBDPrecFree(IDAMem ida_mem);
 
 /* Prototype for difference quotient Jacobian calculation routine */
 
 static int IBBDDQJac(IBBDPrecData pdata, realtype tt, realtype cj,
                      N_Vector yy, N_Vector yp, N_Vector gref, 
                      N_Vector ytemp, N_Vector yptemp, N_Vector gtemp);
+
+/* 
+ * ================================================================
+ * User-Callable Functions: initialization, reinit and free
+ * ================================================================
+ */
 
 /* Readability Replacements */
 
@@ -69,36 +79,44 @@ static int IBBDDQJac(IBBDPrecData pdata, realtype tt, realtype cj,
  * -----------------------------------------------------------------
  */
 
-void *IDABBDPrecAlloc(void *ida_mem, long int Nlocal, 
-		      long int mudq, long int mldq, 
-		      long int mukeep, long int mlkeep, 
-		      realtype dq_rel_yy, 
-		      IDABBDLocalFn Gres, IDABBDCommFn Gcomm)
+int IDABBDPrecInit(void *ida_mem, int Nlocal, 
+                   int mudq, int mldq, 
+                   int mukeep, int mlkeep, 
+                   realtype dq_rel_yy, 
+                   IDABBDLocalFn Gres, IDABBDCommFn Gcomm)
 {
   IDAMem IDA_mem;
+  IDASpilsMem idaspils_mem;
   IBBDPrecData pdata;
   N_Vector tempv4;
-  long int muk, mlk, storage_mu;
+  int muk, mlk, storage_mu;
+  int flag;
 
   if (ida_mem == NULL) {
-    IDAProcessError(NULL, 0, "IDABBDPRE", "IDABBDPrecAlloc", MSGBBD_IDAMEM_NULL);
-    return(NULL);
+    IDAProcessError(NULL, IDASPILS_MEM_NULL, "IDABBDPRE", "IDABBDPrecInit", MSGBBD_MEM_NULL);
+    return(IDASPILS_MEM_NULL);
   }
-
   IDA_mem = (IDAMem) ida_mem;
+
+  /* Test if one of the SPILS linear solvers has been attached */
+  if (IDA_mem->ida_lmem == NULL) {
+    IDAProcessError(IDA_mem, IDASPILS_LMEM_NULL, "IDABBDPRE", "IDABBDPrecInit", MSGBBD_LMEM_NULL);
+    return(IDASPILS_LMEM_NULL);
+  }
+  idaspils_mem = (IDASpilsMem) IDA_mem->ida_lmem;
 
   /* Test if the NVECTOR package is compatible with BLOCK BAND preconditioner */
   if(vec_tmpl->ops->nvgetarraypointer == NULL) {
-    IDAProcessError(IDA_mem, 0, "IDABBDPRE", "IDABBDPrecAlloc", MSGBBD_BAD_NVECTOR);
-    return(NULL);
+    IDAProcessError(IDA_mem, IDASPILS_ILL_INPUT, "IDABBDPRE", "IDABBDPrecInit", MSGBBD_BAD_NVECTOR);
+    return(IDASPILS_ILL_INPUT);
   }
 
   /* Allocate data memory. */
   pdata = NULL;
   pdata = (IBBDPrecData) malloc(sizeof *pdata);
   if (pdata == NULL) {
-    IDAProcessError(IDA_mem, 0, "IDABBDPRE", "IDABBDPrecAlloc", MSGBBD_MEM_FAIL);
-    return(NULL);
+    IDAProcessError(IDA_mem, IDASPILS_MEM_FAIL, "IDABBDPRE", "IDABBDPrecInit", MSGBBD_MEM_FAIL);
+    return(IDASPILS_MEM_FAIL);
   }
 
   /* Set pointers to glocal and gcomm; load half-bandwidths. */
@@ -117,32 +135,32 @@ void *IDABBDPrecAlloc(void *ida_mem, long int Nlocal,
 
   /* Allocate memory for preconditioner matrix. */
   pdata->PP = NULL;
-  pdata->PP = BandAllocMat(Nlocal, muk, mlk, storage_mu);
+  pdata->PP = NewBandMat(Nlocal, muk, mlk, storage_mu);
   if (pdata->PP == NULL) { 
     free(pdata); pdata = NULL;
-    IDAProcessError(IDA_mem, 0, "IDABBDPRE", "IDABBDPrecAlloc", MSGBBD_MEM_FAIL);
-    return(NULL); 
+    IDAProcessError(IDA_mem, IDASPILS_MEM_FAIL, "IDABBDPRE", "IDABBDPrecInit", MSGBBD_MEM_FAIL);
+    return(IDASPILS_MEM_FAIL); 
   }
 
   /* Allocate memory for pivots. */
   pdata->pivots = NULL;
-  pdata->pivots = BandAllocPiv(Nlocal);
+  pdata->pivots = NewIntArray(Nlocal);
   if (pdata->PP == NULL) {
-    BandFreeMat(pdata->PP);
+    DestroyMat(pdata->PP);
     free(pdata); pdata = NULL;
-    IDAProcessError(IDA_mem, 0, "IDABBDPRE", "IDABBDPrecAlloc", MSGBBD_MEM_FAIL);
-    return(NULL);
+    IDAProcessError(IDA_mem, IDASPILS_MEM_FAIL, "IDABBDPRE", "IDABBDPrecInit", MSGBBD_MEM_FAIL);
+    return(IDASPILS_MEM_FAIL);
   }
 
   /* Allocate tempv4 for use by IBBDDQJac */
   tempv4 = NULL;
   tempv4 = N_VClone(vec_tmpl); 
   if (tempv4 == NULL){
-    BandFreeMat(pdata->PP);
-    BandFreePiv(pdata->pivots);
+    DestroyMat(pdata->PP);
+    DestroyArray(pdata->pivots);
     free(pdata); pdata = NULL;
-    IDAProcessError(IDA_mem, 0, "IDABBDPRE", "IDABBDPrecAlloc", MSGBBD_MEM_FAIL);
-    return(NULL);
+    IDAProcessError(IDA_mem, IDASPILS_MEM_FAIL, "IDABBDPRE", "IDABBDPrecInit", MSGBBD_MEM_FAIL);
+    return(IDASPILS_MEM_FAIL);
   }
   pdata->tempv4 = tempv4;
   
@@ -157,98 +175,52 @@ void *IDABBDPrecAlloc(void *ida_mem, long int Nlocal,
   pdata->ipwsize = Nlocal;
   pdata->nge = 0;
 
-  return((void *)pdata);
+  /* Overwrite the pdata field in the SPILS memory */
+  idaspils_mem->s_pdata = pdata;
+
+  /* Attach the pfree function */
+  idaspils_mem->s_pfree = IDABBDPrecFree;
+
+  /* Attach preconditioner solve and setup functions */
+  flag = IDASpilsSetPreconditioner(ida_mem, IDABBDPrecSetup, IDABBDPrecSolve);
+
+  return(flag);
 }
 
-int IDABBDSptfqmr(void *ida_mem, int maxl, void *bbd_data)
+int IDABBDPrecReInit(void *ida_mem,
+		     int mudq, int mldq, 
+		     realtype dq_rel_yy)
 {
   IDAMem IDA_mem;
-  int flag;
-
-  flag = IDASptfqmr(ida_mem, maxl);
-  if(flag != IDASPILS_SUCCESS) return(flag);
-
-  IDA_mem = (IDAMem) ida_mem;
-
-  if (bbd_data == NULL) {
-    
-    IDAProcessError(IDA_mem, IDABBDPRE_PDATA_NULL, "IDABBDPRE", "IDABBDSptfqmr", MSGBBD_PDATA_NULL);
-    return(IDABBDPRE_PDATA_NULL);
-  }
-
-  flag = IDASpilsSetPreconditioner(ida_mem, IDABBDPrecSetup, IDABBDPrecSolve, bbd_data);
-  if(flag != IDASPILS_SUCCESS) return(flag);
-
-  return(IDASPILS_SUCCESS);
-}
-
-int IDABBDSpbcg(void *ida_mem, int maxl, void *bbd_data)
-{
-  IDAMem IDA_mem;
-  int flag;
-
-  flag = IDASpbcg(ida_mem, maxl);
-  if(flag != IDASPILS_SUCCESS) return(flag);
-
-  IDA_mem = (IDAMem) ida_mem;
-
-  if (bbd_data == NULL) {
-    IDAProcessError(IDA_mem, IDABBDPRE_PDATA_NULL, "IDABBDPRE", "IDABBDSpbcg", MSGBBD_PDATA_NULL);
-    return(IDABBDPRE_PDATA_NULL);
-  }
-
-  flag = IDASpilsSetPreconditioner(ida_mem, IDABBDPrecSetup, IDABBDPrecSolve, bbd_data);
-  if(flag != IDASPILS_SUCCESS) return(flag);
-
-  return(IDASPILS_SUCCESS);
-}
-
-int IDABBDSpgmr(void *ida_mem, int maxl, void *bbd_data)
-{
-  IDAMem IDA_mem;
-  int flag;
-
-  flag = IDASpgmr(ida_mem, maxl);
-  if(flag != IDASPILS_SUCCESS) return(flag);
-
-  IDA_mem = (IDAMem) ida_mem;
-
-  if (bbd_data == NULL) {
-    IDAProcessError(IDA_mem, IDABBDPRE_PDATA_NULL, "IDABBDPRE", "IDABBDSpgmr", MSGBBD_PDATA_NULL);
-    return(IDABBDPRE_PDATA_NULL);
-  }
-
-  flag = IDASpilsSetPreconditioner(ida_mem, IDABBDPrecSetup,
-                                   IDABBDPrecSolve, bbd_data);
-  if(flag != IDASPILS_SUCCESS) return(flag);
-
-  return(IDASPILS_SUCCESS);
-}
-
-int IDABBDPrecReInit(void *bbd_data,
-		     long int mudq, long int mldq, 
-		     realtype dq_rel_yy,  
-		     IDABBDLocalFn Gres, IDABBDCommFn Gcomm)
-{
+  IDASpilsMem idaspils_mem;
   IBBDPrecData pdata;
-  IDAMem IDA_mem;
-  long int Nlocal;
+  int Nlocal;
 
-  if (bbd_data == NULL) {
-    IDAProcessError(NULL, IDABBDPRE_PDATA_NULL, "IDABBDPRE", "IDABBDPrecReInit", MSGBBD_PDATA_NULL);
-    return(IDABBDPRE_PDATA_NULL);
+
+  if (ida_mem == NULL) {
+    IDAProcessError(NULL, IDASPILS_MEM_NULL, "IDABBDPRE", "IDABBDPrecReInit", MSGBBD_MEM_NULL);
+    return(IDASPILS_MEM_NULL);
+  }
+  IDA_mem = (IDAMem) ida_mem;
+
+  /* Test if one of the SPILS linear solvers has been attached */
+  if (IDA_mem->ida_lmem == NULL) {
+    IDAProcessError(IDA_mem, IDASPILS_LMEM_NULL, "IDABBDPRE", "IDABBDPrecReInit", MSGBBD_LMEM_NULL);
+    return(IDASPILS_LMEM_NULL);
+  }
+  idaspils_mem = (IDASpilsMem) IDA_mem->ida_lmem;
+
+  /* Test if the preconditioner data is non-NULL */
+  if (idaspils_mem->s_pdata == NULL) {
+    IDAProcessError(IDA_mem, IDASPILS_PMEM_NULL, "IDABBDPRE", "IDABBDPrecReInit", MSGBBD_PMEM_NULL);
+    return(IDASPILS_PMEM_NULL);
   } 
+  pdata = (IBBDPrecData) idaspils_mem->s_pdata;
 
-  pdata =(IBBDPrecData) bbd_data;
-  IDA_mem = (IDAMem) pdata->ida_mem;
-
+  /* Load half-bandwidths. */
   Nlocal = pdata->n_local;
-
-  /* Set pointers to res_data, glocal, and gcomm; load half-bandwidths. */
   pdata->mudq = MIN(Nlocal-1, MAX(0, mudq));
   pdata->mldq = MIN(Nlocal-1, MAX(0, mldq));
-  pdata->glocal = Gres;
-  pdata->gcomm = Gcomm;
 
   /* Set rel_yy based on input value dq_rel_yy (0 implies default). */
   pdata->rel_yy = (dq_rel_yy > ZERO) ? dq_rel_yy : RSqrt(uround); 
@@ -256,80 +228,68 @@ int IDABBDPrecReInit(void *bbd_data,
   /* Re-initialize nge */
   pdata->nge = 0;
 
-  return(IDABBDPRE_SUCCESS);
+  return(IDASPILS_SUCCESS);
 }
 
-void IDABBDPrecFree(void **bbd_data)
+int IDABBDPrecGetWorkSpace(void *ida_mem, long int *lenrwBBDP, long int *leniwBBDP)
 {
-  IBBDPrecData pdata;
-  
-  if (*bbd_data == NULL) return;
-
-  pdata = (IBBDPrecData) (*bbd_data);
-  BandFreeMat(pdata->PP);
-  BandFreePiv(pdata->pivots);
-  N_VDestroy(pdata->tempv4);
-
-  free(*bbd_data);
-  *bbd_data = NULL;
-
-}
-
-int IDABBDPrecGetWorkSpace(void *bbd_data, long int *lenrwBBDP, long int *leniwBBDP)
-{
+  IDAMem IDA_mem;
+  IDASpilsMem idaspils_mem;
   IBBDPrecData pdata;
 
-  if (bbd_data == NULL) {
-    IDAProcessError(NULL, IDABBDPRE_PDATA_NULL, "IDABBDPRE", "IDABBDPrecGetWorkSpace", MSGBBD_PDATA_NULL);
-    return(IDABBDPRE_PDATA_NULL);
+  if (ida_mem == NULL) {
+    IDAProcessError(NULL, IDASPILS_MEM_NULL, "IDABBDPRE", "IDABBDPrecGetWorkSpace", MSGBBD_MEM_NULL);
+    return(IDASPILS_MEM_NULL);
+  }
+  IDA_mem = (IDAMem) ida_mem;
+
+  if (IDA_mem->ida_lmem == NULL) {
+    IDAProcessError(IDA_mem, IDASPILS_LMEM_NULL, "IDABBDPRE", "IDABBDPrecGetWorkSpace", MSGBBD_LMEM_NULL);
+    return(IDASPILS_LMEM_NULL);
+  }
+  idaspils_mem = (IDASpilsMem) IDA_mem->ida_lmem;
+
+  if (idaspils_mem->s_pdata == NULL) {
+    IDAProcessError(IDA_mem, IDASPILS_PMEM_NULL, "IDABBDPRE", "IDABBDPrecGetWorkSpace", MSGBBD_PMEM_NULL);
+    return(IDASPILS_PMEM_NULL);
   } 
-
-  pdata = (IBBDPrecData) bbd_data;
+  pdata = (IBBDPrecData) idaspils_mem->s_pdata;
 
   *lenrwBBDP = pdata->rpwsize;
   *leniwBBDP = pdata->ipwsize;
 
-  return(IDABBDPRE_SUCCESS);
+  return(IDASPILS_SUCCESS);
 }
 
-int IDABBDPrecGetNumGfnEvals(void *bbd_data, long int *ngevalsBBDP)
+int IDABBDPrecGetNumGfnEvals(void *ida_mem, long int *ngevalsBBDP)
 {
+  IDAMem IDA_mem;
+  IDASpilsMem idaspils_mem;
   IBBDPrecData pdata;
 
-  if (bbd_data == NULL) {
-    IDAProcessError(NULL, IDABBDPRE_PDATA_NULL, "IDABBDPRE", "IDABBDPrecGetNumGfnEvals", MSGBBD_PDATA_NULL);
-    return(IDABBDPRE_PDATA_NULL);
-  } 
+  if (ida_mem == NULL) {
+    IDAProcessError(NULL, IDASPILS_MEM_NULL, "IDABBDPRE", "IDABBDPrecGetNumGfnEvals", MSGBBD_MEM_NULL);
+    return(IDASPILS_MEM_NULL);
+  }
+  IDA_mem = (IDAMem) ida_mem;
 
-  pdata = (IBBDPrecData) bbd_data;
+  if (IDA_mem->ida_lmem == NULL) {
+    IDAProcessError(IDA_mem, IDASPILS_LMEM_NULL, "IDABBDPRE", "IDABBDPrecGetNumGfnEvals", MSGBBD_LMEM_NULL);
+    return(IDASPILS_LMEM_NULL);
+  }
+  idaspils_mem = (IDASpilsMem) IDA_mem->ida_lmem;
+
+  if (idaspils_mem->s_pdata == NULL) {
+    IDAProcessError(IDA_mem, IDASPILS_PMEM_NULL, "IDABBDPRE", "IDABBDPrecGetNumGfnEvals", MSGBBD_PMEM_NULL);
+    return(IDASPILS_PMEM_NULL);
+  } 
+  pdata = (IBBDPrecData) idaspils_mem->s_pdata;
 
   *ngevalsBBDP = pdata->nge;
 
-  return(IDABBDPRE_SUCCESS);
+  return(IDASPILS_SUCCESS);
 }
 
-char *IDABBDPrecGetReturnFlagName(int flag)
-{
-  char *name;
-
-  name = (char *)malloc(30*sizeof(char));
-
-  switch(flag) {
-  case IDABBDPRE_SUCCESS:
-    sprintf(name,"IDABBDPRE_SUCCESS");
-    break;   
-  case IDABBDPRE_PDATA_NULL:
-    sprintf(name,"IDABBDPRE_PDATA_NULL");
-    break;
-  case IDABBDPRE_FUNC_UNRECVR:
-    sprintf(name,"IDABBDPRE_FUNC_UNRECVR");
-    break;
-  default:
-    sprintf(name,"NONE");
-  }
-
-  return(name);
-}
 
 /* Readability Replacements */
 
@@ -342,6 +302,7 @@ char *IDABBDPrecGetReturnFlagName(int flag)
 #define gcomm  (pdata->gcomm)
 #define pivots (pdata->pivots)
 #define PP     (pdata->PP)
+#define tempv4 (pdata->tempv4)
 #define nge    (pdata->nge)
 #define rel_yy (pdata->rel_yy)
 
@@ -368,8 +329,7 @@ char *IDABBDPrecGetReturnFlagName(int flag)
  *
  * c_j is the scalar in the system Jacobian, proportional to 1/hh.
  *
- * prec_data is a pointer to user preconditioner data - the same as
- *           the p_data parameter passed to IDASp*.
+ * bbd_data is the pointer to BBD memory set by IDABBDInit
  *
  * tmp1, tmp2, tmp3 are pointers to vectors of type
  *                  N_Vector, used for temporary storage or
@@ -386,37 +346,36 @@ char *IDABBDPrecGetReturnFlagName(int flag)
  * -----------------------------------------------------------------
  */
 
-int IDABBDPrecSetup(realtype tt,
-		    N_Vector yy, N_Vector yp, N_Vector rr,
-		    realtype c_j, void *prec_data,
-		    N_Vector tempv1, N_Vector tempv2, N_Vector tempv3)
+static int IDABBDPrecSetup(realtype tt,
+                           N_Vector yy, N_Vector yp, N_Vector rr,
+                           realtype c_j, void *bbd_data,
+                           N_Vector tempv1, N_Vector tempv2, N_Vector tempv3)
 {
-  long int retfac;
-  int retval;
+  int ier, retval;
   IBBDPrecData pdata;
   IDAMem IDA_mem;
 
-  pdata =(IBBDPrecData) prec_data;
+  pdata =(IBBDPrecData) bbd_data;
 
   IDA_mem = (IDAMem) pdata->ida_mem;
 
   /* Call IBBDDQJac for a new Jacobian calculation and store in PP. */
-  BandZero(PP);
+  SetToZero(PP);
   retval = IBBDDQJac(pdata, tt, c_j, yy, yp,
-                     tempv1, tempv2, tempv3, pdata->tempv4);
+                     tempv1, tempv2, tempv3, tempv4);
   if (retval < 0) {
-    IDAProcessError(IDA_mem, IDABBDPRE_FUNC_UNRECVR, "IDABBDPRE", "IDABBDPrecSetup", MSGBBD_FUNC_FAILED);
+    IDAProcessError(IDA_mem, -1, "IDABBDPRE", "IDABBDPrecSetup", MSGBBD_FUNC_FAILED);
     return(-1);
   }
   if (retval > 0) {
     return(+1);
   } 
-
+ 
   /* Do LU factorization of preconditioner block in place (in PP). */
-  retfac = BandGBTRF(PP, pivots);
+  ier = BandGBTRF(PP, pivots);
 
   /* Return 0 if the LU was complete, or +1 otherwise. */
-  if (retfac > 0) return(+1);
+  if (ier > 0) return(+1);
   return(0);
 }
 
@@ -434,8 +393,7 @@ int IDABBDPrecSetup(realtype tt,
  *
  * zvec is the computed solution vector z.
  *
- * prec_data is a pointer to user preconditioner data - the same as
- *           the p_data parameter passed to IDASp*.
+ * bbd_data is the pointer to BBD data set by IDABBDInit.
  *
  * The arguments tt, yy, yp, rr, c_j, delta, and tmp are NOT used.
  *
@@ -443,16 +401,16 @@ int IDABBDPrecSetup(realtype tt,
  * -----------------------------------------------------------------
  */
 
-int IDABBDPrecSolve(realtype tt,
-		    N_Vector yy, N_Vector yp, N_Vector rr,
-		    N_Vector rvec, N_Vector zvec,
-		    realtype c_j, realtype delta, void *prec_data,
-                    N_Vector tmp)
+static int IDABBDPrecSolve(realtype tt,
+                           N_Vector yy, N_Vector yp, N_Vector rr,
+                           N_Vector rvec, N_Vector zvec,
+                           realtype c_j, realtype delta, void *bbd_data,
+                           N_Vector tmp)
 {
   IBBDPrecData pdata;
   realtype *zd;
 
-  pdata = (IBBDPrecData) prec_data;
+  pdata = (IBBDPrecData) bbd_data;
 
   /* Copy rvec to zvec, do the backsolve, and return. */
   N_VScale(ONE, rvec, zvec);
@@ -464,8 +422,30 @@ int IDABBDPrecSolve(realtype tt,
   return(0);
 }
 
+
+
+static void IDABBDPrecFree(IDAMem IDA_mem)
+{
+  IDASpilsMem idaspils_mem;
+  IBBDPrecData pdata;
+  
+  if (IDA_mem->ida_lmem == NULL) return;
+  idaspils_mem = (IDASpilsMem) IDA_mem->ida_lmem;
+  
+  if (idaspils_mem->s_pdata == NULL) return;
+  pdata = (IBBDPrecData) idaspils_mem->s_pdata;
+
+  DestroyMat(PP);
+  DestroyArray(pivots);
+  N_VDestroy(tempv4);
+
+  free(pdata);
+  pdata = NULL;
+}
+
+
 #define ewt         (IDA_mem->ida_ewt)
-#define res_data    (IDA_mem->ida_rdata)
+#define user_data   (IDA_mem->ida_user_data)
 #define hh          (IDA_mem->ida_hh)
 #define constraints (IDA_mem->ida_constraints)
 
@@ -497,7 +477,7 @@ static int IBBDDQJac(IBBDPrecData pdata, realtype tt, realtype cj,
   IDAMem IDA_mem;
   realtype inc, inc_inv;
   int  retval;
-  long int group, i, j, width, ngroups, i1, i2;
+  int group, i, j, width, ngroups, i1, i2;
   realtype *ydata, *ypdata, *ytempdata, *yptempdata, *grefdata, *gtempdata;
   realtype *cnsdata = NULL, *ewtdata;
   realtype *col_j, conj, yj, ypj, ewtj;
@@ -524,11 +504,11 @@ static int IBBDDQJac(IBBDPrecData pdata, realtype tt, realtype cj,
   /* Call gcomm and glocal to get base value of G(t,y,y'). */
 
   if (gcomm != NULL) {
-    retval = gcomm(Nlocal, tt, yy, yp, res_data);
+    retval = gcomm(Nlocal, tt, yy, yp, user_data);
     if (retval != 0) return(retval);
   }
 
-  retval = glocal(Nlocal, tt, yy, yp, gref, res_data); 
+  retval = glocal(Nlocal, tt, yy, yp, gref, user_data); 
   nge++;
   if (retval != 0) return(retval);
 
@@ -569,7 +549,7 @@ static int IBBDDQJac(IBBDPrecData pdata, realtype tt, realtype cj,
 
     /* Evaluate G with incremented y and yp arguments. */
 
-    retval = glocal(Nlocal, tt, ytemp, yptemp, gtemp, res_data); 
+    retval = glocal(Nlocal, tt, ytemp, yptemp, gtemp, user_data); 
     nge++;
     if (retval != 0) return(retval);
 
@@ -601,3 +581,4 @@ static int IBBDDQJac(IBBDPrecData pdata, realtype tt, realtype cj,
   
   return(0);
 }
+

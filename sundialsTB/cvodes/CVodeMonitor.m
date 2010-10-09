@@ -32,8 +32,6 @@ function [new_data] = CVodeMonitor(call, T, Y, YQ, YS, data)
 %         Update frequency. Data is posted in blocks of dimension n.
 %     o skip [ integer | {0} ]
 %         Number of integrations steps to skip in collecting data to post.
-%     o dir [ {1} | -1 ]
-%         Specifies forward or backward integration.
 %     o post [ {true} | false ]
 %         If false, disable all posting. This option is necessary to disable
 %         monitoring on some processors when running in parallel.
@@ -46,9 +44,12 @@ function [new_data] = CVodeMonitor(call, T, Y, YQ, YS, data)
 %     2. The yQ argument is currently ignored.     
 
 % Radu Serban <radu@llnl.gov>
-% Copyright (c) 2005, The Regents of the University of California.
-% $Revision: 1.4 $Date: 2006/10/05 22:12:20 $
+% Copyright (c) 2007, The Regents of the University of California.
+% $Revision: 1.6 $Date: 2007/08/21 17:42:38 $
 
+if (nargin ~= 6) 
+  error('Monitor data not defined.');
+end
 
 new_data = [];
 
@@ -185,11 +186,7 @@ if call == 1
     return;
   end
 
-  if data.dir == 1
-    si = CVodeGetStats;
-  else
-    si = CVodeGetStatsB;
-  end
+  si = CVodeGetStats;
 
   t(n) = si.tcur;
   
@@ -233,7 +230,7 @@ if data.post & (n == data.updt | call==2)
   if ~data.initialized
 
     if (data.stats | data.cntr) & data.grph
-      graphical_init(n, hfg, npg, data.stats, data.cntr, data.dir, ...
+      graphical_init(n, hfg, npg, data.stats, data.cntr, ...
                      t, h, q, nst, nfe, nni, netf, ncfn);
     end
     
@@ -243,7 +240,7 @@ if data.post & (n == data.updt | call==2)
     end
 
     if data.sol | data.sensi
-      sol_init(n, hfs, nps, data.sol, data.sensi, data.dir, ...
+      sol_init(n, hfs, nps, data.sol, data.sensi,  ...
                N, Ns, t, y, ys);
     end
     
@@ -338,9 +335,6 @@ end
 if ~isfield(data,'select')
   data.select = [];
 end
-if ~isfield(data,'dir')
-  data.dir = 1;
-end
 if ~isfield(data,'post')
   data.post = true;
 end
@@ -378,7 +372,7 @@ data.ys = 0;
 
 %-------------------------------------------------------------------------
 
-function [] = graphical_init(n, hfg, npg, stats, cntr, dir, ...
+function [] = graphical_init(n, hfg, npg, stats, cntr, ...
                              t, h, q, nst, nfe, nni, netf, ncfn)
 
 fig_name = 'CVODES run statistics';
@@ -399,11 +393,7 @@ pl = 0;
 
 % Time label and figure title
 
-if dir==1
-  tlab = '\rightarrow   t   \rightarrow';
-else
-  tlab = '\leftarrow   t   \leftarrow';
-end
+tlab = '\rightarrow   t   \rightarrow';
 
 % Step size and order
 if stats
@@ -624,7 +614,7 @@ drawnow
 
 %-------------------------------------------------------------------------
 
-function [] = sol_init(n, hfs, nps, sol, sensi, dir, N, Ns, t, y, ys)
+function [] = sol_init(n, hfs, nps, sol, sensi, N, Ns, t, y, ys)
 
 fig_name = 'CVODES solution';
 
@@ -644,11 +634,7 @@ set(hfs,'color',[1 1 1]);
 
 % Time label
 
-if dir==1
-  tlab = '\rightarrow   t   \rightarrow';
-else
-  tlab = '\leftarrow   t   \leftarrow';
-end
+tlab = '\rightarrow   t   \rightarrow';
 
 % Get number of colors in colormap
 map = colormap;

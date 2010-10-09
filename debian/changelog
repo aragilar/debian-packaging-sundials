@@ -1,3 +1,20 @@
+sundials (2.4.0-1) unstable; urgency=low
+
+  * Standards-Version changed to 3.9.1
+
+  [ Christophe Trophime ]
+  * Team upload
+  * New upstream version
+  * Add a separate package for IDAS
+  * Remove pdf from the orig tarball
+  * debian/control:  add missing builddependencies on blas/lapack
+  * debian/control: remove libsundials-serial-doc
+  * debian/rules: modify get-orig-rules target to remove pdf from the orig
+    tarball
+  * debian/orig-tarball.sh: change to force download to tarballs directory
+	
+ -- Sylvestre Ledru <sylvestre@debian.org>  Sat, 09 Oct 2010 18:18:22 +0200
+
 sundials (2.3.0-2) unstable; urgency=low
 
   * Package moved to debian-science

@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:37 $
+ * $Revision: 1.7 $
+ * $Date: 2007/12/12 18:13:22 $
  * -----------------------------------------------------------------
  * Programmer(s): Allan Taylor, Alan Hindmarsh, Radu Serban, and
  *                Aaron Collier @ LLNL
@@ -33,7 +33,7 @@
 
    FNVINITS and FNVINITP initialize serial and parallel vector
                          computations, respectively
-   FKINMALLOC interfaces to KINMalloc
+   FKINMALLOC interfaces to KINInit
    FKINSETIIN, FKINSETRIN, FKINSETVIN interface to KINSet* functions
    FKINDENSE interfaces to KINDense
    FKINSPTFQMR interfaces to KINSptfqmr
@@ -415,8 +415,7 @@ extern "C" {
  */
 
 #include <kinsol/kinsol.h>
-#include <sundials/sundials_dense.h>   /* definition of DenseMat      */
-#include <sundials/sundials_band.h>    /* definition of BandMat      */
+#include <sundials/sundials_direct.h>  /* definition of type DlsMat   */
 #include <sundials/sundials_nvector.h> /* definition of type N_Vector */
 #include <sundials/sundials_types.h>   /* definition of type realtype */
 
@@ -426,79 +425,35 @@ extern "C" {
  * -----------------------------------------------------------------
  */
 
-#if defined(F77_FUNC)
+#if defined(SUNDIALS_F77_FUNC)
 
-#define FKIN_MALLOC         F77_FUNC(fkinmalloc, FKINMALLOC)
-#define FKIN_SETIIN         F77_FUNC(fkinsetiin, FKINSETIIN)
-#define FKIN_SETRIN         F77_FUNC(fkinsetrin, FKINSETRIN)
-#define FKIN_SETVIN         F77_FUNC(fkinsetvin, FKINSETVIN)
-#define FKIN_DENSE          F77_FUNC(fkindense, FKINDENSE)
-#define FKIN_DENSESETJAC    F77_FUNC(fkindensesetjac, FKINDENSESETJAC)
-#define FKIN_BAND           F77_FUNC(fkinband, FKINBAND)
-#define FKIN_BANDSETJAC     F77_FUNC(fkinbandsetjac, FKINBANDSETJAC)
-#define FKIN_SPTFQMR        F77_FUNC(fkinsptfqmr, FKINSPTFQMR)
-#define FKIN_SPBCG          F77_FUNC(fkinspbcg, FKINSPBCG)
-#define FKIN_SPGMR          F77_FUNC(fkinspgmr, FKINSPGMR)
-#define FKIN_SPILSSETJAC    F77_FUNC(fkinspilssetjac, FKINSPILSSETJAC)
-#define FKIN_SPILSSETPREC   F77_FUNC(fkinspilssetprec, FKINSPILSSETPREC)
-#define FKIN_SOL            F77_FUNC(fkinsol, FKINSOL)
-#define FKIN_FREE           F77_FUNC(fkinfree, FKINFREE)
-#define FK_FUN              F77_FUNC(fkfun, FKFUN)
-#define FK_PSET             F77_FUNC(fkpset, FKPSET)
-#define FK_PSOL             F77_FUNC(fkpsol, FKPSOL)
-#define FK_JTIMES           F77_FUNC(fkjtimes, FKJTIMES)
-#define FK_DJAC             F77_FUNC(fkdjac, FKDJAC)
-#define FK_BJAC             F77_FUNC(fkbjac, FKBJAC)
+#define FKIN_MALLOC         SUNDIALS_F77_FUNC(fkinmalloc, FKINMALLOC)
+#define FKIN_SETIIN         SUNDIALS_F77_FUNC(fkinsetiin, FKINSETIIN)
+#define FKIN_SETRIN         SUNDIALS_F77_FUNC(fkinsetrin, FKINSETRIN)
+#define FKIN_SETVIN         SUNDIALS_F77_FUNC(fkinsetvin, FKINSETVIN)
+#define FKIN_DENSE          SUNDIALS_F77_FUNC(fkindense, FKINDENSE)
+#define FKIN_DENSESETJAC    SUNDIALS_F77_FUNC(fkindensesetjac, FKINDENSESETJAC)
+#define FKIN_BAND           SUNDIALS_F77_FUNC(fkinband, FKINBAND)
+#define FKIN_BANDSETJAC     SUNDIALS_F77_FUNC(fkinbandsetjac, FKINBANDSETJAC)
+#define FKIN_LAPACKDENSE       SUNDIALS_F77_FUNC(fkinlapackdense, FKINLAPACKDENSE)
+#define FKIN_LAPACKDENSESETJAC SUNDIALS_F77_FUNC(fkinlapackdensesetjac, FKINLAPACKDENSESETJAC)
+#define FKIN_LAPACKBAND        SUNDIALS_F77_FUNC(fkinlapackband, FKINLAPACKBAND)
+#define FKIN_LAPACKBANDSETJAC  SUNDIALS_F77_FUNC(fkinlapackbandsetjac, FKINLAPACKBANDSETJAC)
+#define FKIN_SPTFQMR        SUNDIALS_F77_FUNC(fkinsptfqmr, FKINSPTFQMR)
+#define FKIN_SPBCG          SUNDIALS_F77_FUNC(fkinspbcg, FKINSPBCG)
+#define FKIN_SPGMR          SUNDIALS_F77_FUNC(fkinspgmr, FKINSPGMR)
+#define FKIN_SPILSSETJAC    SUNDIALS_F77_FUNC(fkinspilssetjac, FKINSPILSSETJAC)
+#define FKIN_SPILSSETPREC   SUNDIALS_F77_FUNC(fkinspilssetprec, FKINSPILSSETPREC)
+#define FKIN_SOL            SUNDIALS_F77_FUNC(fkinsol, FKINSOL)
+#define FKIN_FREE           SUNDIALS_F77_FUNC(fkinfree, FKINFREE)
+#define FK_FUN              SUNDIALS_F77_FUNC(fkfun, FKFUN)
+#define FK_PSET             SUNDIALS_F77_FUNC(fkpset, FKPSET)
+#define FK_PSOL             SUNDIALS_F77_FUNC(fkpsol, FKPSOL)
+#define FK_JTIMES           SUNDIALS_F77_FUNC(fkjtimes, FKJTIMES)
+#define FK_DJAC             SUNDIALS_F77_FUNC(fkdjac, FKDJAC)
+#define FK_BJAC             SUNDIALS_F77_FUNC(fkbjac, FKBJAC)
 
-#elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_LOWER)
-
-#define FKIN_MALLOC         fkinmalloc
-#define FKIN_SETIIN         fkinsetiin
-#define FKIN_SETRIN         fkinsetrin
-#define FKIN_SETVIN         fkinsetvin
-#define FKIN_DENSE          fkindense
-#define FKIN_DENSESETJAC    fkindensesetjac
-#define FKIN_BAND           fkinband
-#define FKIN_BANDSETJAC     fkinbandsetjac
-#define FKIN_SPTFQMR        fkinsptfqmr
-#define FKIN_SPBCG          fkinspbcg
-#define FKIN_SPGMR          fkinspgmr
-#define FKIN_SPILSSETJAC    fkinspilssetjac
-#define FKIN_SPILSSETPREC   fkinspilssetprec
-#define FKIN_SOL            fkinsol
-#define FKIN_FREE           fkinfree
-#define FK_FUN              fkfun
-#define FK_PSET             fkpset
-#define FK_PSOL             fkpsol
-#define FK_JTIMES           fkjtimes
-#define FK_DJAC             fkdjac
-#define FK_BJAC             fkbjac
-
-#elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_UPPER)
-
-#define FKIN_MALLOC         FKINMALLOC
-#define FKIN_SETIIN         FKINSETIIN
-#define FKIN_SETRIN         FKINSETRIN
-#define FKIN_SETVIN         FKINSETVIN
-#define FKIN_DENSE          FKINDENSE
-#define FKIN_DENSESETJAC    FKINDENSESETJAC
-#define FKIN_BAND           FKINBAND
-#define FKIN_BANDSETJAC     FKINBANDSETJAC
-#define FKIN_SPTFQMR        FKINSPTFQMR
-#define FKIN_SPBCG          FKINSPBCG
-#define FKIN_SPGMR          FKINSPGMR
-#define FKIN_SPILSSETJAC    FKINSPILSSETJAC
-#define FKIN_SPILSSETPREC   FKINSPILSSETPREC
-#define FKIN_SOL            FKINSOL
-#define FKIN_FREE           FKINFREE
-#define FK_FUN              FKFUN
-#define FK_PSET             FKPSET
-#define FK_PSOL             FKPSOL
-#define FK_JTIMES           FKJTIMES
-#define FK_DJAC             FKDJAC
-#define FK_BJAC             FKBJAC
-
-#elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_LOWER)
+#else
 
 #define FKIN_MALLOC         fkinmalloc_
 #define FKIN_SETIIN         fkinsetiin_
@@ -508,6 +463,10 @@ extern "C" {
 #define FKIN_DENSESETJAC    fkindensesetjac_
 #define FKIN_BAND           fkinband_
 #define FKIN_BANDSETJAC     fkinbandsetjac_
+#define FKIN_LAPACKDENSE       fkinlapackdense_
+#define FKIN_LAPACKDENSESETJAC fkinlapackdensesetjac_
+#define FKIN_LAPACKBAND        fkinlapackband_
+#define FKIN_LAPACKBANDSETJAC  fkinlapackbandsetjac_
 #define FKIN_SPTFQMR        fkinsptfqmr_
 #define FKIN_SPBCG          fkinspbcg_
 #define FKIN_SPGMR          fkinspgmr_
@@ -521,78 +480,6 @@ extern "C" {
 #define FK_JTIMES           fkjtimes_
 #define FK_DJAC             fkdjac_
 #define FK_BJAC             fkbjac_
-
-#elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_UPPER)
-
-#define FKIN_MALLOC         FKINMALLOC_
-#define FKIN_SETIIN         FKINSETIIN_
-#define FKIN_SETRIN         FKINSETRIN_
-#define FKIN_SETVIN         FKINSETVIN_
-#define FKIN_DENSE          FKINDENSE_
-#define FKIN_DENSESETJAC    FKINDENSESETJAC_
-#define FKIN_BAND           FKINBAND_
-#define FKIN_BANDSETJAC     FKINBANDSETJAC_
-#define FKIN_SPTFQMR        FKINSPTFQMR_
-#define FKIN_SPBCG          FKINSPBCG_
-#define FKIN_SPGMR          FKINSPGMR_
-#define FKIN_SPILSSETJAC    FKINSPILSSETJAC_
-#define FKIN_SPILSSETPREC   FKINSPILSSETPREC_
-#define FKIN_SOL            FKINSOL_
-#define FKIN_FREE           FKINFREE_
-#define FK_FUN              FKFUN_
-#define FK_PSET             FKPSET_
-#define FK_PSOL             FKPSOL_
-#define FK_JTIMES           FKJTIMES_
-#define FK_DJAC             FKDJAC_
-#define FK_BJAC             FKBJAC_
-
-#elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_LOWER)
-
-#define FKIN_MALLOC         fkinmalloc__
-#define FKIN_SETIIN         fkinsetiin__
-#define FKIN_SETRIN         fkinsetrin__
-#define FKIN_SETVIN         fkinsetvin__
-#define FKIN_DENSE          fkindense__
-#define FKIN_DENSESETJAC    fkindensesetjac__
-#define FKIN_BAND           fkinband__
-#define FKIN_BANDSETJAC     fkinbandsetjac__
-#define FKIN_SPTFQMR        fkinsptfqmr__
-#define FKIN_SPBCG          fkinspbcg__
-#define FKIN_SPGMR          fkinspgmr__
-#define FKIN_SPILSSETJAC    fkinspilssetjac__
-#define FKIN_SPILSSETPREC   fkinspilssetprec__
-#define FKIN_SOL            fkinsol__
-#define FKIN_FREE           fkinfree__
-#define FK_FUN              fkfun__
-#define FK_PSET             fkpset__
-#define FK_PSOL             fkpsol__
-#define FK_JTIMES           fkjtimes__
-#define FK_DJAC             fkdjac__
-#define FK_BJAC             fkbjac__
-
-#elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_UPPER)
-
-#define FKIN_MALLOC         FKINMALLOC__
-#define FKIN_SETIIN         FKINSETIIN__
-#define FKIN_SETRIN         FKINSETRIN__
-#define FKIN_SETVIN         FKINSETVIN__
-#define FKIN_DENSE          FKINDENSE__
-#define FKIN_DENSESETJAC    FKINDENSESETJAC__
-#define FKIN_BAND           FKINBAND__
-#define FKIN_BANDSETJAC     FKINBANDSETJAC__
-#define FKIN_SPTFQMR        FKINSPTFQMR__
-#define FKIN_SPBCG          FKINSPBCG__
-#define FKIN_SPGMR          FKINSPGMR__
-#define FKIN_SPILSSETJAC    FKINSPILSSETJAC__
-#define FKIN_SPILSSETPREC   FKINSPILSSETPREC__
-#define FKIN_SOL            FKINSOL__
-#define FKIN_FREE           FKINFREE__
-#define FK_FUN              FKFUN__
-#define FK_PSET             FKPSET__
-#define FK_PSOL             FKPSOL__
-#define FK_JTIMES           FKJTIMES__
-#define FK_DJAC             FKDJAC__
-#define FK_BJAC             FKBJAC__
 
 #endif
 
@@ -608,14 +495,21 @@ void FKIN_SETIIN(char key_name[], long int *ival, int *ier, int key_len);
 void FKIN_SETRIN(char key_name[], realtype *rval, int *ier, int key_len);
 void FKIN_SETVIN(char key_name[], realtype *vval, int *ier, int key_len);
 
-void FKIN_DENSE(long int *neq, int *ier);
-void FKIN_BAND(long int *neq, long int *mupper, long int *mlower, int *ier);
+void FKIN_DENSE(int *neq, int *ier);
+void FKIN_DENSESETJAC(int *flag, int *ier);
+
+void FKIN_BAND(int *neq, int *mupper, int *mlower, int *ier);
+void FKIN_BANDSETJAC(int *flag, int *ier);
+
+void FKIN_LAPACKDENSE(int *neq, int *ier);
+void FKIN_LAPACKDENSESETJAC(int *flag, int *ier);
+void FKIN_LAPACKBAND(int *neq, int *mupper, int *mlower, int *ier);
+void FKIN_LAPACKBANDSETJAC(int *flag, int *ier);
+
 void FKIN_SPTFQMR(int *maxl, int *ier);
 void FKIN_SPBCG(int *maxl, int *ier);
 void FKIN_SPGMR(int *maxl, int *maxlrst, int *ier);
 
-void FKIN_DENSESETJAC(int *flag, int *ier);
-void FKIN_BANDSETJAC(int *flag, int *ier);
 void FKIN_SPILSSETJAC(int *flag, int *ier);
 void FKIN_SPILSSETPREC(int *flag, int *ier);
 
@@ -630,28 +524,41 @@ void FKIN_FREE(void);
  * -----------------------------------------------------------------
  */
 
-int FKINfunc(N_Vector uu, N_Vector fval, void *f_data);
+int FKINfunc(N_Vector uu, N_Vector fval, void *user_data);
 
-int FKINDenseJac(long int N, DenseMat J, N_Vector uu, N_Vector fval,
-                 void *jac_data, N_Vector vtemp1, N_Vector vtemp2);
+int FKINDenseJac(int N, 
+                 N_Vector uu, N_Vector fval,
+                 DlsMat J, void *user_data, 
+                 N_Vector vtemp1, N_Vector vtemp2);
 
-int FKINBandJac(long int N, long int mupper, long int mlower,
-                BandMat J, N_Vector uu, N_Vector fval, void *jac_data,
+int FKINBandJac(int N, int mupper, int mlower,
+                N_Vector uu, N_Vector fval, 
+                DlsMat J, void *user_data,
                 N_Vector vtemp1, N_Vector vtemp2);
+
+int FKINLapackDenseJac(int N, 
+                       N_Vector uu, N_Vector fval,
+                       DlsMat J, void *user_data, 
+                       N_Vector vtemp1, N_Vector vtemp2);
+
+int FKINLapackBandJac(int N, int mupper, int mlower,
+                      N_Vector uu, N_Vector fval, 
+                      DlsMat J, void *user_data,
+                      N_Vector vtemp1, N_Vector vtemp2);
 
 int FKINPSet(N_Vector uu, N_Vector uscale,
              N_Vector fval, N_Vector fscale,
-             void *P_data,
+             void *user_data,
              N_Vector vtemp1, N_Vector vtemp2);
 
 int FKINPSol(N_Vector uu, N_Vector uscale, 
              N_Vector fval, N_Vector fscale, 
-             N_Vector vv, void *P_data,
+             N_Vector vv, void *user_data,
              N_Vector vtemp);
 
 int FKINJtimes(N_Vector v, N_Vector Jv,
                N_Vector uu, booleantype *new_uu, 
-               void *J_data);
+               void *user_data);
 
 /*
  * -----------------------------------------------------------------
@@ -669,7 +576,8 @@ extern int KIN_ls;
 /* Linear solver IDs */
 
 enum { KIN_LS_SPGMR = 1, KIN_LS_SPBCG = 2, KIN_LS_SPTFQMR = 3, 
-       KIN_LS_DENSE = 4, KIN_LS_BAND  = 5 };
+       KIN_LS_DENSE = 4, KIN_LS_BAND  = 5,
+       KIN_LS_LAPACKDENSE = 6, KIN_LS_LAPACKBAND = 7 };
 
 #ifdef __cplusplus
 }

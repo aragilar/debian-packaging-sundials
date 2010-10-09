@@ -6,16 +6,23 @@ include /usr/share/cdbs/1/class/autotools.mk
 include /usr/share/cdbs/1/rules/patchsys-quilt.mk
 
 debusr := $(DEB_DESTDIR)usr
+debexp = debian/libsundials-serial-dev/usr/share/doc/libsundials-serial-dev/examples
+debexp = debian/libsundials-serial-dev/usr/lib
+
+DEB_AUTO_UPDATE_AUTOMAKE := 1.11
 
 DEB_CONFIGURE_EXTRA_FLAGS := --enable-shared --disable-mpi --enable-examples
 DEB_CONFIGURE_SCRIPT_ENV += F77="gfortran"
-DEB_MAKE_INSTALL_TARGET := install prefix=$(debusr)
+DEB_MAKE_INSTALL_TARGET := install prefix=$(debusr) EXS_INSTDIR=$(DEB_DESTDIR)$(debexp)
 
 DEB_INSTALL_MANPAGES_libsundials-serial-dev := debian/sundials-config.1
 DEB_INSTALL_EXAMPLES_libsundials-serial-dev := examples/*
 DEB_DH_INSTALL_SOURCEDIR = $(DEB_DESTDIR)
 
 DEB_COMPRESS_EXCLUDE = .c .out .f
+
+USCAN_DESTDIR := $(CURDIR)/../tarballs
+DEB_STRIPPED_UPSTREAM_VERSION = $(shell echo $(DEB_UPSTREAM_VERSION) | sed -n -e 's/\.dfsg.*$$//p')
 
 # The following hack is necessary because the upstream makefiles do
 # not install $libdir and $includedir or $mandir
@@ -24,18 +31,31 @@ common-install-prehook-impl::
 	mkdir -p $(debusr)/include
 	mkdir -p $(debusr)/share/man/man1
 
-get-orig-source:
-	wget -O $(DEB_SOURCE_PACKAGE)_$(DEB_UPSTREAM_VERSION).orig.tar.gz \
-	     https://computation.llnl.gov/casc/sundials/download/code/$(DEB_SOURCE_PACKAGE)-$(DEB_UPSTREAM_VERSION).tar.gz
-
 build/libsundials-serial::
 	$(SHELL) debian/check.sh
 
-debexp = debian/libsundials-serial-dev/usr/share/doc/libsundials-serial-dev/examples
 
 binary-install/libsundials-serial-dev::
+	find $(deblib) \( -name \*.la \) -exec rm -rf {} +
 	find $(debexp) -name .libs -exec rm -rf {} +
 	find $(debexp) \
 	        -type f -a ! \( -name README -o -name \*.out		\
 				   -o -name \*.f -o -name \*.c \)	\
 		-a -exec rm -f \{\} \;
+
+clean::
+	find examples \
+	        -type f -a  \( -name \*.o -o -name \*.out \)	\
+		-a -exec rm -f \{\} \;
+
+get-orig-source:
+	mkdir -p $(USCAN_DESTDIR)
+	uscan --force-download  --no-symlink --verbose --destdir $(USCAN_DESTDIR)
+	tar -C $(USCAN_DESTDIR) -xzf $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)_$(DEB_STRIPPED_UPSTREAM_VERSION).orig.tar.gz
+	rm -f $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)*.tar.gz
+	find $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION) -name \*.pdf | xargs rm
+	cd $(USCAN_DESTDIR) && GZIP=-9 tar -czf \
+	   $(CURDIR)/$(DEB_SOURCE_PACKAGE)_$(DEB_UPSTREAM_VERSION).orig.tar.gz \
+	   $(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION)
+	rm -rf $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION)
+	

@@ -4,8 +4,8 @@ function [] = IDAFree()
 %   Usage:  IDAFree
 
 % Radu Serban <radu@llnl.gov>
-% Copyright (c) 2005, The Regents of the University of California.
-% $Revision: 1.1 $Date: 2006/07/17 16:49:49 $
+% Copyright (c) 2007, The Regents of the University of California.
+% $Revision: 1.3 $Date: 2007/08/21 17:38:42 $
 
-mode = 30;
+mode = 40;
 idm(mode);

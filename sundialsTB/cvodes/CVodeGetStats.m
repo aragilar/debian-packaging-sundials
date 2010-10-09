@@ -1,4 +1,4 @@
-function si = CVodeGetStats()
+function [si, status] = CVodeGetStats()
 %CVodeGetStats returns run statistics for the CVODES solver.
 %
 %   Usage: STATS = CVodeGetStats
@@ -79,8 +79,8 @@ function si = CVodeGetStats()
 %o ncfnS     - number of convergence test failures due to sensitivity variables
 
 % Radu Serban <radu@llnl.gov>
-% Copyright (c) 2005, The Regents of the University of California.
-% $Revision: 1.3 $Date: 2006/10/11 18:12:36 $
+% Copyright (c) 2007, The Regents of the University of California.
+% $Revision: 1.5 $Date: 2007/12/05 21:58:17 $
 
 mode = 30;
-si = cvm(mode);
+[si, status] = cvm(mode);

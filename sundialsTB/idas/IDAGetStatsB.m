@@ -1,7 +1,9 @@
-function si = IDAGetStatsB()
+function [si, status] = IDAGetStatsB(idxB)
 %IDAGetStatsB returns run statistics for the backward IDAS solver.
 %
-%   Usage: STATS = IDAGetStatsB
+%   Usage: STATS = IDAGetStatsB(IDXB)
+%
+%   IDXB is the index of the backward problem, returned by IDAInitB.
 %
 %Fields in the structure STATS
 %
@@ -54,7 +56,11 @@ function si = IDAGetStatsB()
 
 % Radu Serban <radu@llnl.gov>
 % Copyright (c) 2005, The Regents of the University of California.
-% $Revision: 1.1 $Date: 2006/07/17 16:49:50 $
+% $Revision: 1.4 $Date: 2007/12/05 21:58:18 $
 
-mode = 21;
-si = idm(mode);
+mode = 31;
+
+if nargin ~= 1
+  error('Wrong number of input arguments');
+end
+[si, status] = idm(mode, idxB-1);

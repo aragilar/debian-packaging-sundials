@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.2 $
- * $Date: 2006/10/11 16:34:15 $
+ * $Revision: 1.10 $
+ * $Date: 2009/02/17 02:42:29 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Radu Serban and Aaron Collier @ LLNL
  * -----------------------------------------------------------------
@@ -21,6 +21,7 @@
 
 #include "cvodes_impl.h"
 #include "cvodes_bandpre_impl.h"
+#include "cvodes_spils_impl.h"
 
 #include <cvodes/cvodes_sptfqmr.h>
 #include <cvodes/cvodes_spbcgs.h>
@@ -32,23 +33,27 @@
 #define ZERO         RCONST(0.0)
 #define ONE          RCONST(1.0)
 
-/* Prototypes of CVBandPrecSetup and CVBandPrecSolve */
+/* Prototypes of cvBandPrecSetup and cvBandPrecSolve */
   
-static int CVBandPrecSetup(realtype t, N_Vector y, N_Vector fy, 
+static int cvBandPrecSetup(realtype t, N_Vector y, N_Vector fy, 
                            booleantype jok, booleantype *jcurPtr, 
                            realtype gamma, void *bp_data,
                            N_Vector tmp1, N_Vector tmp2, N_Vector tmp3);
 
-static int CVBandPrecSolve(realtype t, N_Vector y, N_Vector fy, 
+static int cvBandPrecSolve(realtype t, N_Vector y, N_Vector fy, 
                            N_Vector r, N_Vector z, 
                            realtype gamma, realtype delta,
                            int lr, void *bp_data, N_Vector tmp);
 
+/* Prototype for cvBandPrecFree */
+
+static void cvBandPrecFree(CVodeMem cv_mem);
+
 /* Prototype for difference quotient Jacobian calculation routine */
 
-static int CVBandPDQJac(CVBandPrecData pdata, 
-                        realtype t, N_Vector y, N_Vector fy, 
-                        N_Vector ftemp, N_Vector ytemp);
+static int cvBandPrecDQJac(CVBandPrecData pdata, 
+                           realtype t, N_Vector y, N_Vector fy, 
+                           N_Vector ftemp, N_Vector ytemp);
 
 /* 
  * ================================================================
@@ -64,38 +69,45 @@ static int CVBandPDQJac(CVBandPrecData pdata,
 
 /*
  * -----------------------------------------------------------------
- * Malloc, Free, and Get Functions
+ * Initialization, Free, and Get Functions
  * NOTE: The band linear solver assumes a serial implementation
- *       of the NVECTOR package. Therefore, CVBandPrecAlloc will
+ *       of the NVECTOR package. Therefore, CVBandPrecInit will
  *       first test for a compatible N_Vector internal representation
  *       by checking that the function N_VGetArrayPointer exists.
  * -----------------------------------------------------------------
  */
-
-void *CVBandPrecAlloc(void *cvode_mem, long int N, 
-                      long int mu, long int ml)
+int CVBandPrecInit(void *cvode_mem, int N, int mu, int ml)
 {
   CVodeMem cv_mem;
+  CVSpilsMem cvspils_mem;
   CVBandPrecData pdata;
-  long int mup, mlp, storagemu;
+  int mup, mlp, storagemu;
+  int flag;
 
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, 0, "CVBANDPRE", "CVBandPrecAlloc", MSGBP_CVMEM_NULL);
-    return(NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVBANDPRE", "CVBandPrecInit", MSGBP_MEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
+  /* Test if one of the SPILS linear solvers has been attached */
+  if (cv_mem->cv_lmem == NULL) {
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVBANDPRE", "CVBandPrecInit", MSGBP_LMEM_NULL);
+    return(CVSPILS_LMEM_NULL);
+  }
+  cvspils_mem = (CVSpilsMem) cv_mem->cv_lmem;
+
   /* Test if the NVECTOR package is compatible with the BAND preconditioner */
   if(vec_tmpl->ops->nvgetarraypointer == NULL) {
-    CVProcessError(cv_mem, 0, "CVBANDPRE", "CVBandPrecAlloc", MSGBP_BAD_NVECTOR);
-    return(NULL);
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVBANDPRE", "CVBandPrecInit", MSGBP_BAD_NVECTOR);
+    return(CVSPILS_ILL_INPUT);
   }
 
   pdata = NULL;
   pdata = (CVBandPrecData) malloc(sizeof *pdata);  /* Allocate data memory */
   if (pdata == NULL) {
-    CVProcessError(cv_mem, 0, "CVBANDPRE", "CVBandPrecAlloc", MSGBP_MEM_FAIL);
-    return(NULL);
+    cvProcessError(cv_mem, CVSPILS_MEM_FAIL, "CVBANDPRE", "CVBandPrecInit", MSGBP_MEM_FAIL);
+    return(CVSPILS_MEM_FAIL);
   }
 
   /* Load pointers and bandwidths into pdata block. */
@@ -109,128 +121,73 @@ void *CVBandPrecAlloc(void *cvode_mem, long int N,
 
   /* Allocate memory for saved banded Jacobian approximation. */
   pdata->savedJ = NULL;
-  pdata->savedJ = BandAllocMat(N, mup, mlp, mup);
+  pdata->savedJ = NewBandMat(N, mup, mlp, mup);
   if (pdata->savedJ == NULL) {
     free(pdata); pdata = NULL;
-    CVProcessError(cv_mem, 0, "CVBANDPRE", "CVBandPrecAlloc", MSGBP_MEM_FAIL);
-    return(NULL);
+    cvProcessError(cv_mem, CVSPILS_MEM_FAIL, "CVBANDPRE", "CVBandPrecInit", MSGBP_MEM_FAIL);
+    return(CVSPILS_MEM_FAIL);
   }
+
 
   /* Allocate memory for banded preconditioner. */
   storagemu = MIN(N-1, mup+mlp);
   pdata->savedP = NULL;
-  pdata->savedP = BandAllocMat(N, mup, mlp, storagemu);
+  pdata->savedP = NewBandMat(N, mup, mlp, storagemu);
   if (pdata->savedP == NULL) {
-    BandFreeMat(pdata->savedJ);
+    DestroyMat(pdata->savedJ);
     free(pdata); pdata = NULL;
-    CVProcessError(cv_mem, 0, "CVBANDPRE", "CVBandPrecAlloc", MSGBP_MEM_FAIL);
-    return(NULL);
+    cvProcessError(cv_mem, CVSPILS_MEM_FAIL, "CVBANDPRE", "CVBandPrecInit", MSGBP_MEM_FAIL);
+    return(CVSPILS_MEM_FAIL);
   }
 
   /* Allocate memory for pivot array. */
   pdata->pivots = NULL;
-  pdata->pivots = BandAllocPiv(N);
+  pdata->pivots = NewIntArray(N);
   if (pdata->savedJ == NULL) {
-    BandFreeMat(pdata->savedP);
-    BandFreeMat(pdata->savedJ);
+    DestroyMat(pdata->savedP);
+    DestroyMat(pdata->savedJ);
     free(pdata); pdata = NULL;
-    CVProcessError(cv_mem, 0, "CVBANDPRE", "CVBandPrecAlloc", MSGBP_MEM_FAIL);
-    return(NULL);
+    cvProcessError(cv_mem, CVSPILS_MEM_FAIL, "CVBANDPRE", "CVBandPrecInit", MSGBP_MEM_FAIL);
+    return(CVSPILS_MEM_FAIL);
   }
 
-  return((void *) pdata);
+  /* Overwrite the P_data field in the SPILS memory */
+  cvspils_mem->s_P_data = pdata;
+
+  /* Attach the pfree function */
+  cvspils_mem->s_pfree = cvBandPrecFree;
+
+  /* Attach preconditioner solve and setup functions */
+  flag = CVSpilsSetPreconditioner(cvode_mem, cvBandPrecSetup, cvBandPrecSolve);
+
+  return(flag);
 }
 
-int CVBPSptfqmr(void *cvode_mem, int pretype, int maxl, void *p_data)
+int CVBandPrecGetWorkSpace(void *cvode_mem, long int *lenrwBP, long int *leniwBP)
 {
   CVodeMem cv_mem;
-  int flag;
+  CVSpilsMem cvspils_mem;
+  CVBandPrecData pdata;
+  int N, ml, mu, smu;
 
-  flag = CVSptfqmr(cvode_mem, pretype, maxl);
-  if(flag != CVSPILS_SUCCESS) return(flag);
   
-  cv_mem = (CVodeMem) cvode_mem;
-
-  if ( p_data == NULL ) {
-    CVProcessError(cv_mem, CVBANDPRE_PDATA_NULL, "CVBANDPRE", "CVBPSptfqmr", MSGBP_PDATA_NULL);
-    return(CVBANDPRE_PDATA_NULL);
-  } 
-
-  flag = CVSpilsSetPreconditioner(cvode_mem, CVBandPrecSetup, CVBandPrecSolve, p_data);
-  if(flag != CVSPILS_SUCCESS) return(flag);
-
-  return(CVSPILS_SUCCESS);
-}
-
-int CVBPSpbcg(void *cvode_mem, int pretype, int maxl, void *p_data)
-{
-  CVodeMem cv_mem;
-  int flag;
-
-  flag = CVSpbcg(cvode_mem, pretype, maxl);
-  if(flag != CVSPILS_SUCCESS) return(flag);
-
-  cv_mem = (CVodeMem) cvode_mem;
-
-  if ( p_data == NULL ) {
-    CVProcessError(cv_mem, CVBANDPRE_PDATA_NULL, "CVBANDPRE", "CVBPSpbcg", MSGBP_PDATA_NULL);
-    return(CVBANDPRE_PDATA_NULL);
-  } 
-
-  flag = CVSpilsSetPreconditioner(cvode_mem, CVBandPrecSetup, CVBandPrecSolve, p_data);
-  if(flag != CVSPILS_SUCCESS) return(flag);
-
-  return(CVSPILS_SUCCESS);
-}
-
-int CVBPSpgmr(void *cvode_mem, int pretype, int maxl, void *p_data)
-{
-  CVodeMem cv_mem;
-  int flag;
-
-  flag = CVSpgmr(cvode_mem, pretype, maxl);
-  if(flag != CVSPILS_SUCCESS) return(flag);
-
-  cv_mem = (CVodeMem) cvode_mem;
-
-  if ( p_data == NULL ) {
-    CVProcessError(cv_mem, CVBANDPRE_PDATA_NULL, "CVBANDPRE", "CVBPSpgmr", MSGBP_PDATA_NULL);
-    return(CVBANDPRE_PDATA_NULL);
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVBANDPRE", "CVBandPrecGetWorkSpace", MSGBP_MEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
+  cv_mem = (CVodeMem) cvode_mem;
 
-  flag = CVSpilsSetPreconditioner(cvode_mem, CVBandPrecSetup, CVBandPrecSolve, p_data);
-  if(flag != CVSPILS_SUCCESS) return(flag);
+  if (cv_mem->cv_lmem == NULL) {
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVBANDPRE", "CVBandPrecGetWorkSpace", MSGBP_LMEM_NULL);
+    return(CVSPILS_LMEM_NULL);
+  }
+  cvspils_mem = (CVSpilsMem) cv_mem->cv_lmem;
 
-  return(CVSPILS_SUCCESS);
-}
-
-void CVBandPrecFree(void **bp_data)
-{
-  CVBandPrecData pdata;
-
-  if (*bp_data == NULL) return;
-
-  pdata = (CVBandPrecData) (*bp_data);
-  BandFreeMat(pdata->savedJ);
-  BandFreeMat(pdata->savedP);
-  BandFreePiv(pdata->pivots);
-
-  free(*bp_data);
-  *bp_data = NULL;
-
-}
-
-int CVBandPrecGetWorkSpace(void *bp_data, long int *lenrwBP, long int *leniwBP)
-{
-  CVBandPrecData pdata;
-  long int N, ml, mu, smu;
-
-  if ( bp_data == NULL ) {
-    CVProcessError(NULL, CVBANDPRE_PDATA_NULL, "CVBANDPRE", "CVBandPrecGetWorkSpace", MSGBP_PDATA_NULL);
-    return(CVBANDPRE_PDATA_NULL);
+  if (cvspils_mem->s_P_data == NULL) {
+    cvProcessError(cv_mem, CVSPILS_PMEM_NULL, "CVBANDPRE", "CVBandPrecGetWorkSpace", MSGBP_PMEM_NULL);
+    return(CVSPILS_PMEM_NULL);
   } 
-
-  pdata = (CVBandPrecData) bp_data;
+  pdata = (CVBandPrecData) cvspils_mem->s_P_data;
 
   N   = pdata->N;
   mu  = pdata->mu;
@@ -240,58 +197,36 @@ int CVBandPrecGetWorkSpace(void *bp_data, long int *lenrwBP, long int *leniwBP)
   *leniwBP = pdata->N;
   *lenrwBP = N * ( 2*ml + smu + mu + 2 );
 
-  return(CVBANDPRE_SUCCESS);
+  return(CVSPILS_SUCCESS);
 }
 
-int CVBandPrecGetNumRhsEvals(void *bp_data, long int *nfevalsBP)
+int CVBandPrecGetNumRhsEvals(void *cvode_mem, long int *nfevalsBP)
 {
+  CVodeMem cv_mem;
+  CVSpilsMem cvspils_mem;
   CVBandPrecData pdata;
 
-  if (bp_data == NULL) {
-    CVProcessError(NULL, CVBANDPRE_PDATA_NULL, "CVBANDPRE", "CVBandPrecGetNumRhsEvals", MSGBP_PDATA_NULL);
-    return(CVBANDPRE_PDATA_NULL);
-  } 
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVBANDPRE", "CVBandPrecGetNumRhsEvals", MSGBP_MEM_NULL);
+    return(CVSPILS_MEM_NULL);
+  }
+  cv_mem = (CVodeMem) cvode_mem;
 
-  pdata = (CVBandPrecData) bp_data;
+  if (cv_mem->cv_lmem == NULL) {
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVBANDPRE", "CVBandPrecGetNumRhsEvals", MSGBP_LMEM_NULL);
+    return(CVSPILS_LMEM_NULL);
+  }
+  cvspils_mem = (CVSpilsMem) cv_mem->cv_lmem;
+
+  if (cvspils_mem->s_P_data == NULL) {
+    cvProcessError(cv_mem, CVSPILS_PMEM_NULL, "CVBANDPRE", "CVBandPrecGetNumRhsEvals", MSGBP_PMEM_NULL);
+    return(CVSPILS_PMEM_NULL);
+  } 
+  pdata = (CVBandPrecData) cvspils_mem->s_P_data;
 
   *nfevalsBP = pdata->nfeBP;
 
-  return(CVBANDPRE_SUCCESS);
-}
-
-/*
- * -----------------------------------------------------------------
- * CVBandPrecGetReturnFlagName
- * -----------------------------------------------------------------
- */
-
-char *CVBandPrecGetReturnFlagName(int flag)
-{
-  char *name;
-
-  name = (char *)malloc(30*sizeof(char));
-
-  switch(flag) {
-  case CVBANDPRE_SUCCESS:
-    sprintf(name,"CVBANDPRE_SUCCESS");
-    break;    
-  case CVBANDPRE_PDATA_NULL:
-    sprintf(name,"CVBANDPRE_PDATA_NULL");
-    break;
-  case CVBANDPRE_RHSFUNC_UNRECVR:
-    sprintf(name,"CVBANDPRE_RHSFUNC_UNRECVR");
-    break;
-  case CVBANDPRE_ADJMEM_NULL:
-    sprintf(name,"CVBANDPRE_ADJMEM_NULL");
-    break;
-  case CVBANDPRE_MEM_FAIL:
-    sprintf(name,"CVBANDPRE_MEM_FAIL");
-    break;
-  default:
-    sprintf(name,"NONE");
-  }
-
-  return(name);
+  return(CVSPILS_SUCCESS);
 }
 
 /* Readability Replacements */
@@ -306,14 +241,14 @@ char *CVBandPrecGetReturnFlagName(int flag)
 
 /*
  * -----------------------------------------------------------------
- * CVBandPrecSetup
+ * cvBandPrecSetup
  * -----------------------------------------------------------------
- * Together CVBandPrecSetup and CVBandPrecSolve use a banded
+ * Together cvBandPrecSetup and cvBandPrecSolve use a banded
  * difference quotient Jacobian to create a preconditioner.
- * CVBandPrecSetup calculates a new J, if necessary, then
+ * cvBandPrecSetup calculates a new J, if necessary, then
  * calculates P = I - gamma*J, and does an LU factorization of P.
  *
- * The parameters of CVBandPrecSetup are as follows:
+ * The parameters of cvBandPrecSetup are as follows:
  *
  * t       is the current value of the independent variable.
  *
@@ -329,7 +264,7 @@ char *CVBandPrecGetReturnFlagName(int flag)
  *           jok == TRUE means that Jacobian data from the
  *                  previous PrecSetup call will be reused
  *                  (with the current value of gamma).
- *         A CVBandPrecSetup call with jok == TRUE should only
+ *         A cvBandPrecSetup call with jok == TRUE should only
  *         occur after a call with jok == FALSE.
  *
  * *jcurPtr is a pointer to an output integer flag which is
@@ -340,25 +275,23 @@ char *CVBandPrecGetReturnFlagName(int flag)
  *
  * gamma   is the scalar appearing in the Newton matrix.
  *
- * bp_data is a pointer to preconditoner data - the same as the
- *         bp_data parameter passed to CVSp*.
+ * bp_data is a pointer to preconditoner data (set by CVBandPrecInit)
  *
  * tmp1, tmp2, and tmp3 are pointers to memory allocated
  *           for vectors of length N for work space. This
  *           routine uses only tmp1 and tmp2.
  *
- * The value to be returned by the CVBandPrecSetup function is
+ * The value to be returned by the cvBandPrecSetup function is
  *   0  if successful, or
  *   1  if the band factorization failed.
  * -----------------------------------------------------------------
  */
 
-static int CVBandPrecSetup(realtype t, N_Vector y, N_Vector fy, 
+static int cvBandPrecSetup(realtype t, N_Vector y, N_Vector fy, 
                            booleantype jok, booleantype *jcurPtr, 
                            realtype gamma, void *bp_data,
                            N_Vector tmp1, N_Vector tmp2, N_Vector tmp3)
 {
-  long int ier;
   CVBandPrecData pdata;
   CVodeMem cv_mem;
   int retval;
@@ -376,13 +309,13 @@ static int CVBandPrecSetup(realtype t, N_Vector y, N_Vector fy,
 
   } else {
 
-    /* If jok = FALSE, call CVBandPDQJac for new J value. */
+    /* If jok = FALSE, call cvBandPrecDQJac for new J value. */
     *jcurPtr = TRUE;
-    BandZero(savedJ);
+    SetToZero(savedJ);
 
-    retval = CVBandPDQJac(pdata, t, y, fy, tmp1, tmp2);
+    retval = cvBandPrecDQJac(pdata, t, y, fy, tmp1, tmp2);
     if (retval < 0) {
-      CVProcessError(cv_mem, CVBANDPRE_RHSFUNC_UNRECVR, "CVBANDPRE", "CVBandPrecSetup", MSGBP_RHSFUNC_FAILED);
+      cvProcessError(cv_mem, -1, "CVBANDPRE", "cvBandPrecSetup", MSGBP_RHSFUNC_FAILED);
       return(-1);
     }
     if (retval > 0) {
@@ -395,38 +328,37 @@ static int CVBandPrecSetup(realtype t, N_Vector y, N_Vector fy,
   
   /* Scale and add I to get savedP = I - gamma*J. */
   BandScale(-gamma, savedP);
-  BandAddI(savedP);
+  AddIdentity(savedP);
  
   /* Do LU factorization of matrix. */
-  ier = BandGBTRF(savedP, pivots);
+  retval = BandGBTRF(savedP, pivots);
  
   /* Return 0 if the LU was complete; otherwise return 1. */
-  if (ier > 0) return(1);
+  if (retval > 0) return(1);
   return(0);
 }
 
 /*
  * -----------------------------------------------------------------
- * CVBandPrecSolve
+ * cvBandPrecSolve
  * -----------------------------------------------------------------
- * CVBandPrecSolve solves a linear system P z = r, where P is the
+ * cvBandPrecSolve solves a linear system P z = r, where P is the
  * matrix computed by CVBandPrecond.
  *
- * The parameters of CVBandPrecSolve used here are as follows:
+ * The parameters of cvBandPrecSolve used here are as follows:
  *
  * r       is the right-hand side vector of the linear system.
  *
- * bp_data is a pointer to preconditioner data - the same as the
- *         bp_data parameter passed to CVSp*.
+ * bp_data is a pointer to preconditoner data (set by CVBandPrecInit)
  *
- * z       is the output vector computed by CVBandPrecSolve.
+ * z       is the output vector computed by cvBandPrecSolve.
  *
- * The value returned by the CVBandPrecSolve function is always 0,
+ * The value returned by the cvBandPrecSolve function is always 0,
  * indicating success.
  * -----------------------------------------------------------------
  */ 
 
-static int CVBandPrecSolve(realtype t, N_Vector y, N_Vector fy, 
+static int cvBandPrecSolve(realtype t, N_Vector y, N_Vector fy, 
                            N_Vector r, N_Vector z, 
                            realtype gamma, realtype delta,
                            int lr, void *bp_data, N_Vector tmp)
@@ -448,15 +380,36 @@ static int CVBandPrecSolve(realtype t, N_Vector y, N_Vector fy,
   return(0);
 }
 
-#define ewt    (cv_mem->cv_ewt)
-#define uround (cv_mem->cv_uround)
-#define h      (cv_mem->cv_h)
-#define f      (cv_mem->cv_f)
-#define f_data (cv_mem->cv_f_data)
+
+static void cvBandPrecFree(CVodeMem cv_mem)
+{
+  CVSpilsMem cvspils_mem;
+  CVBandPrecData pdata;
+
+  if (cv_mem->cv_lmem == NULL) return;
+  cvspils_mem = (CVSpilsMem) cv_mem->cv_lmem;
+  
+  if (cvspils_mem->s_P_data == NULL) return;
+  pdata = (CVBandPrecData) cvspils_mem->s_P_data;
+
+  DestroyMat(savedJ);
+  DestroyMat(savedP);
+  DestroyArray(pivots);
+
+  free(pdata);
+  pdata = NULL;
+}
+
+
+#define ewt       (cv_mem->cv_ewt)
+#define uround    (cv_mem->cv_uround)
+#define h         (cv_mem->cv_h)
+#define f         (cv_mem->cv_f)
+#define user_data (cv_mem->cv_user_data)
 
 /*
  * -----------------------------------------------------------------
- * CVBandPDQJac
+ * cvBandPrecDQJac
  * -----------------------------------------------------------------
  * This routine generates a banded difference quotient approximation to
  * the Jacobian of f(t,y). It assumes that a band matrix of type
@@ -467,13 +420,13 @@ static int CVBandPrecSolve(realtype t, N_Vector y, N_Vector fy,
  * -----------------------------------------------------------------
  */
 
-static int CVBandPDQJac(CVBandPrecData pdata, 
-                        realtype t, N_Vector y, N_Vector fy, 
-                        N_Vector ftemp, N_Vector ytemp)
+static int cvBandPrecDQJac(CVBandPrecData pdata, 
+                           realtype t, N_Vector y, N_Vector fy, 
+                           N_Vector ftemp, N_Vector ytemp)
 {
   CVodeMem cv_mem;
   realtype fnorm, minInc, inc, inc_inv, srur;
-  long int group, i, j, width, ngroups, i1, i2;
+  int group, i, j, width, ngroups, i1, i2;
   realtype *col_j, *ewt_data, *fy_data, *ftemp_data, *y_data, *ytemp_data;
   int retval;
 
@@ -509,7 +462,7 @@ static int CVBandPDQJac(CVBandPrecData pdata,
 
     /* Evaluate f with incremented y. */
 
-    retval = f(t, ytemp, ftemp, f_data);
+    retval = f(t, ytemp, ftemp, user_data);
     nfeBP++;
     if (retval != 0) return(retval);
 
@@ -538,110 +491,54 @@ static int CVBandPDQJac(CVBandPrecData pdata,
  * ================================================================
  */
 
-/* Additional readability replacements */
-
-#define bp_data_B   (ca_mem->ca_pmemB)
-
 /*
- * CVBandPrecAllocB, CVBPSp*B
+ * CVBandPrecInitB, CVBPSp*B
  *
  * Wrappers for the backward phase around the corresponding 
  * CVODES functions
  */
 
-int CVBandPrecAllocB(void *cvadj_mem, long int nB, 
-                     long int muB, long int mlB)
+int CVBandPrecInitB(void *cvode_mem, int which, int nB, int muB, int mlB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
-  CVodeMem cvB_mem;
-  void *bp_dataB;
-
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVBANDPRE_ADJMEM_NULL, "CVBANDPRE", "CVBandPrecAlloc", MSGBP_CAMEM_NULL);
-    return(CVBANDPRE_ADJMEM_NULL);
-  }
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvB_mem = ca_mem->cvb_mem;
-
-  bp_dataB = CVBandPrecAlloc(cvB_mem, nB, muB, mlB);
-  if (bp_dataB == NULL) {
-    CVProcessError(cvB_mem, CVBANDPRE_MEM_FAIL, "CVBANDPRE", "CVBandPrecAlloc", MSGBP_MEM_FAIL);
-    return(CVBANDPRE_MEM_FAIL);
-  }
-
-  bp_data_B = bp_dataB;
-
-  return(CVBANDPRE_SUCCESS);
-
-}
-
-int CVBPSptfqmrB(void *cvadj_mem, int pretypeB, int maxlB)
-{
-  CVadjMem ca_mem;
-  CVodeMem cvB_mem;
+  CVodeBMem cvB_mem;
+  void *cvodeB_mem;
   int flag;
 
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVBANDPRE_ADJMEM_NULL, "CVBANDPRE", "CVBPSptfqmrAlloc", MSGBP_CAMEM_NULL);
-    return(CVBANDPRE_ADJMEM_NULL);
+  /* Check if cvode_mem exists */
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVBANDPRE", "CVBandPrecInitB", MSGBP_MEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
-  ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = (CVodeMem) cvode_mem;
 
-  cvB_mem = ca_mem->cvb_mem;
-  
-  flag = CVBPSptfqmr(cvB_mem, pretypeB, maxlB, bp_data_B);
+  /* Was ASA initialized? */
+  if (cv_mem->cv_adjMallocDone == FALSE) {
+    cvProcessError(cv_mem, CVSPILS_NO_ADJ, "CVBANDPRE", "CVBandPrecInitB", MSGBP_NO_ADJ);
+    return(CVSPILS_NO_ADJ);
+  } 
+  ca_mem = cv_mem->cv_adj_mem;
+
+  /* Check which */
+  if ( which >= ca_mem->ca_nbckpbs ) {
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVBANDPRE", "CVBandPrecInitB", MSGBP_BAD_WHICH);
+    return(CVSPILS_ILL_INPUT);
+  }
+
+  /* Find the CVodeBMem entry in the linked list corresponding to which */
+  cvB_mem = ca_mem->cvB_mem;
+  while (cvB_mem != NULL) {
+    if ( which == cvB_mem->cv_index ) break;
+    cvB_mem = cvB_mem->cv_next;
+  }
+
+  cvB_mem->cv_pfree = NULL;
+
+  cvodeB_mem = (void *) (cvB_mem->cv_mem);
+
+  flag = CVBandPrecInit(cvodeB_mem, nB, muB, mlB);
 
   return(flag);
 }
-
-int CVBPSpbcgB(void *cvadj_mem, int pretypeB, int maxlB)
-{
-  CVadjMem ca_mem;
-  CVodeMem cvB_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVBANDPRE_ADJMEM_NULL, "CVBANDPRE", "CVBPSptbcgAlloc", MSGBP_CAMEM_NULL);
-    return(CVBANDPRE_ADJMEM_NULL);
-  }
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvB_mem = ca_mem->cvb_mem;
-  
-  flag = CVBPSpbcg(cvB_mem, pretypeB, maxlB, bp_data_B);
-
-  return(flag);
-}
-
-int CVBPSpgmrB(void *cvadj_mem, int pretypeB, int maxlB)
-{
-  CVadjMem ca_mem;
-  CVodeMem cvB_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVBANDPRE_ADJMEM_NULL, "CVBANDPRE", "CVBPSpgmrAlloc", MSGBP_CAMEM_NULL);
-    return(CVBANDPRE_ADJMEM_NULL);
-  }
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvB_mem = ca_mem->cvb_mem;
-  
-  flag = CVBPSpgmr(cvB_mem, pretypeB, maxlB, bp_data_B);
-
-  return(flag);
-}
-
-
-void CVBandPrecFreeB(void *cvadj_mem)
-{
-  CVadjMem ca_mem;
-
-  if (cvadj_mem == NULL) return;
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  CVBandPrecFree(&bp_data_B);
-}
-
 

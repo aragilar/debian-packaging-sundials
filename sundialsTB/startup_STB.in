@@ -1,16 +1,20 @@
+function [] = startup_STB(stb)
 % STARTUP_STB  path/environment setup script for sundialsTB
-%              Add to or call from Matlab's startup.m
 
 % Radu Serban <radu@llnl.gov>
-% Copyright (c) 2005, The Regents of the University of California.
-% $Revision: 1.3 $Date: 2006/07/27 21:27:13 $
+% Copyright (c) 2007, The Regents of the University of California.
+% $Revision: 1.7 $Date: 2007/12/05 21:58:17 $
 
-stb_path = '@STB_PATH@';
+% If called without any argument, use the path specified which was
+% harcoded when startup_STB.m was created.
 
-stb = fullfile(stb_path,'sundialsTB');
+if nargin == 0
+  stb_path = '@STB_PATH@';
+  stb = fullfile(stb_path,'sundialsTB');
+end
+  
 
 if ~exist(stb, 'dir')
-  clear stb
   warning('SUNDIALS Toolbox not found'); 
   return
 end
@@ -26,6 +30,8 @@ if exist(q, 'dir')
   addpath(q);
   q = fullfile(stb,'cvodes','cvm');
   addpath(q);
+  q = fullfile(stb,'cvodes','function_types');
+  addpath(q);
 end
 
 q = fullfile(stb,'idas');
@@ -33,12 +39,16 @@ if exist(q, 'dir')
   addpath(q);
   q = fullfile(stb,'idas','idm');
   addpath(q);
+  q = fullfile(stb,'idas','function_types');
+  addpath(q);
 end
 
 q = fullfile(stb,'kinsol');
 if exist(q, 'dir')
   addpath(q);
   q = fullfile(stb,'kinsol','kim');
+  addpath(q);
+  q = fullfile(stb,'kinsol','function_types');
   addpath(q);
 end
 
@@ -52,5 +62,4 @@ if exist(q, 'dir')
   addpath(q);
 end
 
-clear stb q
 
