@@ -1,3 +1,10 @@
+sundials (2.4.0-2) unstable; urgency=low
+
+  [Nobuhiro Iwamatsu]
+  * debian/patches: add sh4.patch (Closes: #602160)
+
+ -- Christophe Trophime <christophe.trophime@grenoble.cnrs.fr>  Mon, 14 Feb 2011 11:25:18 +0100
+
 sundials (2.4.0-1) unstable; urgency=low
 
   * Standards-Version changed to 3.9.1
@@ -13,7 +20,7 @@ sundials (2.4.0-1) unstable; urgency=low
     tarball
   * debian/orig-tarball.sh: change to force download to tarballs directory
 	
- -- Sylvestre Ledru <sylvestre@debian.org>  Sat, 09 Oct 2010 18:18:22 +0200
+ -- Sylvestre Ledru <sylvestre@debian.org>  Mon, 16 Aug 2010 15:07:11 +0200
 
 sundials (2.3.0-2) unstable; urgency=low
 
