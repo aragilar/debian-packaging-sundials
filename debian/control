@@ -1,11 +1,11 @@
 Source: sundials
 Priority: optional
 Section: libs
-Maintainer: Debian Scientific Computing Team <pkg-scicomp-devel@lists.alioth.debian.org>
+Maintainer: Debian Science Team <debian-science-maintainers@lists.alioth.debian.org>
 Uploaders: Christophe Trophime <christophe.trophime@grenoble.cnrs.fr>,
  Sylvestre Ledru <sylvestre@debian.org>
 Build-Depends: debhelper (>= 7), autotools-dev, cdbs, quilt, gfortran, libblas-dev | libblas-3gf.so, liblapack-dev | liblapack-3gf.so
-Standards-Version: 3.9.1
+Standards-Version: 3.9.2
 Homepage: http://www.llnl.gov/CASC/sundials/
 Vcs-Svn: svn://svn.debian.org/svn/debian-science/packages/sundials/trunk/
 Vcs-Browser: http://svn.debian.org/viewsvn/debian-science/packages/sundials/trunk/

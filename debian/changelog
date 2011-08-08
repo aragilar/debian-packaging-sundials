@@ -1,3 +1,10 @@
+sundials (2.4.0-3) unstable; urgency=low
+
+  * Change the uploader to Debian Science
+  * Standards-Version changed to 3.9.2
+
+ -- Sylvestre Ledru <sylvestre@debian.org>  Mon, 08 Aug 2011 22:29:34 +0200
+
 sundials (2.4.0-2) unstable; urgency=low
 
   [Nobuhiro Iwamatsu]
@@ -20,7 +27,7 @@ sundials (2.4.0-1) unstable; urgency=low
     tarball
   * debian/orig-tarball.sh: change to force download to tarballs directory
 	
- -- Sylvestre Ledru <sylvestre@debian.org>  Mon, 16 Aug 2010 15:07:11 +0200
+ -- Sylvestre Ledru <sylvestre@debian.org>  Sat, 09 Oct 2010 18:18:22 +0200
 
 sundials (2.3.0-2) unstable; urgency=low
 
