@@ -2,9 +2,11 @@ Source: sundials
 Priority: optional
 Section: libs
 Maintainer: Debian Science Team <debian-science-maintainers@lists.alioth.debian.org>
-Uploaders: Christophe Trophime <christophe.trophime@grenoble.cnrs.fr>,
+Uploaders: Christophe Trophime <christophe.trophime@lncmi.cnrs.fr>,
  Sylvestre Ledru <sylvestre@debian.org>
-Build-Depends: debhelper (>= 7), autotools-dev, cdbs, quilt, gfortran, libblas-dev | libblas-3gf.so, liblapack-dev | liblapack-3gf.so
+Build-Depends: debhelper (>= 7), autotools-dev, cdbs, quilt, gfortran, 
+ libblas-dev | libblas-3gf.so, liblapack-dev | liblapack-3gf.so,
+ octave-pkg-dev (>= 0.7.0)
 Standards-Version: 3.9.2
 Homepage: http://www.llnl.gov/CASC/sundials/
 Vcs-Svn: svn://svn.debian.org/svn/debian-science/packages/sundials/trunk/
@@ -104,4 +106,17 @@ Description: SUNDIALS development files
 # algebraic systems).
 # .
 # This package contains SUNDIALS documentation.
+
+Package: octave-sundials
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}, ${octave:Depends}
+Recommends: libsundials-serial-dev
+Description: SUNDIALS  for octave
+ The family of solvers referred to as SUNDIALS (SUit of Nonlinear and
+ DIfferential/ALgebraic equation Solvers) consists of solvers CVODE
+ (for ODE systems), CVODES (ODE with sensitivity analysis capabilities),
+ IDA (for differential-algebraic systems), and KINSOL (for nonlinear
+ algebraic systems).
+ .
+ This package contains SUNDIALS plugins for octave.
 

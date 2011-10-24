@@ -1,3 +1,12 @@
+sundials (2.4.0-4) unstable; urgency=low
+
+  * add octave support
+  
+  [Peter Green]
+  * debian/patches: add fix-format-error.patch (Closes: #646457)
+
+ -- Christophe Trophime <christophe.trophime@lncmi.cnrs.fr>  Mon, 24 Oct 2011 15:01:41 +0200
+
 sundials (2.4.0-3) unstable; urgency=low
 
   * Change the uploader to Debian Science

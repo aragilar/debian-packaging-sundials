@@ -5,6 +5,13 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/class/autotools.mk
 include /usr/share/cdbs/1/rules/patchsys-quilt.mk
 
+#include /usr/share/hardening-includes/hardening.make
+#
+#CFLAGS=$(shell dpkg-buildflags --get CFLAGS)
+#LDFLAGS=$(shell dpkg-buildflags --get LDFLAGS)
+#CFLAGS+=$(HARDENING_CFLAGS)
+#LDFLAGS+=$(HARDENING_LDFLAGS)
+
 debusr := $(DEB_DESTDIR)usr
 debexp = debian/libsundials-serial-dev/usr/share/doc/libsundials-serial-dev/examples
 debexp = debian/libsundials-serial-dev/usr/lib
@@ -24,6 +31,12 @@ DEB_COMPRESS_EXCLUDE = .c .out .f
 USCAN_DESTDIR := $(CURDIR)/../tarballs
 DEB_STRIPPED_UPSTREAM_VERSION = $(shell echo $(DEB_UPSTREAM_VERSION) | sed -n -e 's/\.dfsg.*$$//p')
 
+# The directories below are versioned.  We only support the packages for the
+# stable version of Octave
+octver = 3.2
+mpath = /usr/share/octave/packages/$(octver)
+bpath = /usr/lib/octave/packages/$(octver)
+
 # The following hack is necessary because the upstream makefiles do
 # not install $libdir and $includedir or $mandir
 common-install-prehook-impl::
@@ -34,6 +47,23 @@ common-install-prehook-impl::
 build/libsundials-serial::
 	$(SHELL) debian/check.sh
 
+build/octave-sundials::
+	mkdir -p sundialsTB/octave
+	cd sundialsTB && octave -fV install_STB.m
+	strip sundialsTB/octave/sundialsTB/cvodes/cvm/cvm.mex
+	strip sundialsTB/octave/sundialsTB/idas/idm/idm.mex
+	strip sundialsTB/octave/sundialsTB/kinsol/kim/kim.mex
+
+install/octave-sundials::
+	mkdir -p debian/tmp/$(mpath)
+	mkdir -p debian/tmp/$(bpath)/sundialsTB/cvodes/cvm/
+	mv sundialsTB/octave/sundialsTB/cvodes/cvm/cvm.mex debian/tmp/$(bpath)/sundialsTB/cvodes/cvm
+	mkdir -p debian/tmp/$(bpath)/sundialsTB/idas/idm/
+	mv sundialsTB/octave/sundialsTB/idas/idm/idm.mex debian/tmp/$(bpath)/sundialsTB/idas/idm
+	mkdir -p debian/tmp/$(bpath)/sundialsTB/kinsol/kim
+	mv sundialsTB/octave/sundialsTB/kinsol/kim/kim.mex debian/tmp/$(bpath)/sundialsTB/kinsol/kim
+	mv sundialsTB/octave/* debian/tmp/$(mpath)
+	rm debian/tmp/$(mpath)/sundialsTB/LICENSE
 
 binary-install/libsundials-serial-dev::
 	find $(deblib) \( -name \*.la \) -exec rm -rf {} +
@@ -47,6 +77,10 @@ clean::
 	find examples \
 	        -type f -a  \( -name \*.o -o -name \*.out \)	\
 		-a -exec rm -f \{\} \;
+	find sundialsTB \
+	        -type f -a  \( -name \*.o -o -name \*.mex \)	\
+		-a -exec rm -f \{\} \;
+	rm -rf sundialsTB/octave
 
 get-orig-source:
 	mkdir -p $(USCAN_DESTDIR)
