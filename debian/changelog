@@ -1,3 +1,11 @@
+sundials (2.4.0-5) unstable; urgency=low
+
+  * debian/rules: remove duplicate definition of debexp var.
+    This brings back the missing static libraries (closes: #650933)
+  * debian/control: add DM-Upload-Allowed
+
+ -- Christophe Trophime <christophe.trophime@lncmi.cnrs.fr>  Mon, 05 Dec 2011 08:36:33 +0100
+
 sundials (2.4.0-4) unstable; urgency=low
 
   * add octave support

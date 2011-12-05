@@ -14,7 +14,6 @@ include /usr/share/cdbs/1/rules/patchsys-quilt.mk
 
 debusr := $(DEB_DESTDIR)usr
 debexp = debian/libsundials-serial-dev/usr/share/doc/libsundials-serial-dev/examples
-debexp = debian/libsundials-serial-dev/usr/lib
 
 DEB_AUTO_UPDATE_AUTOMAKE := 1.11
 
@@ -67,7 +66,7 @@ install/octave-sundials::
 
 binary-install/libsundials-serial-dev::
 	find $(deblib) \( -name \*.la \) -exec rm -rf {} +
-	find $(debexp) -name .libs -exec rm -rf {} +
+	find $(debexp) \( -name \*.libs \) -exec rm -rf {} +
 	find $(debexp) \
 	        -type f -a ! \( -name README -o -name \*.out		\
 				   -o -name \*.f -o -name \*.c \)	\
@@ -81,6 +80,8 @@ clean::
 	        -type f -a  \( -name \*.o -o -name \*.mex \)	\
 		-a -exec rm -f \{\} \;
 	rm -rf sundialsTB/octave
+	rm -rf bin/makefile-update.sh
+	
 
 get-orig-source:
 	mkdir -p $(USCAN_DESTDIR)
