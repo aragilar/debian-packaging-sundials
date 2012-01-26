@@ -1,3 +1,9 @@
+sundials (2.4.0-6) unstable; urgency=low
+
+  * Rebuild using the last version of hdf5.
+
+ -- Sylvestre Ledru <sylvestre@debian.org>  Thu, 26 Jan 2012 10:18:07 +0100
+
 sundials (2.4.0-5) unstable; urgency=low
 
   * debian/rules: remove duplicate definition of debexp var.
