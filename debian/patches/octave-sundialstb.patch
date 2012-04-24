@@ -1,7 +1,7 @@
-Index: sundials-2.4.0/sundialsTB/install_STB.m
+Index: sundials-2.5.0/sundialsTB/install_STB.m
 ===================================================================
---- sundials-2.4.0.orig/sundialsTB/install_STB.m	2011-11-16 14:42:09.000000000 +0100
-+++ sundials-2.4.0/sundialsTB/install_STB.m	2011-11-16 14:46:25.000000000 +0100
+--- sundials-2.5.0.orig/sundialsTB/install_STB.m	2012-03-21 23:47:00.000000000 +0100
++++ sundials-2.5.0/sundialsTB/install_STB.m	2012-06-07 10:47:47.000000000 +0200
 @@ -9,7 +9,7 @@
  % MEX compiler command
  % --------------------
@@ -11,7 +11,7 @@ Index: sundials-2.4.0/sundialsTB/install_STB.m
  
  % Location of sundialsTB and top of sundials source tree
  % ------------------------------------------------------
-@@ -46,41 +46,11 @@
+@@ -46,48 +46,18 @@
  % Figure out what modules exist and which ones will be built
  % ----------------------------------------------------------
  
@@ -57,6 +57,14 @@ Index: sundials-2.4.0/sundialsTB/install_STB.m
  
  % Create sundials_config.h
  % ------------------------
+ 
+ mkdir('sundials');
+ fi = fopen(fullfile('sundials','sundials_config.h'),'w');
+-fprintf(fi,'#define SUNDIALS_PACKAGE_VERSION "2.4.0"\n');
++fprintf(fi,'#define SUNDIALS_PACKAGE_VERSION "2.5.0"\n');
+ fprintf(fi,'#define SUNDIALS_DOUBLE_PRECISION 1\n');
+ fprintf(fi,'#define SUNDIALS_USE_GENERIC_MATH 1\n');
+ fprintf(fi,'#define SUNDIALS_EXPORT\n');
 @@ -117,17 +87,15 @@
  % ------------------
  

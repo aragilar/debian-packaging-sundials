@@ -30,11 +30,9 @@ DEB_COMPRESS_EXCLUDE = .c .out .f
 USCAN_DESTDIR := $(CURDIR)/../tarballs
 DEB_STRIPPED_UPSTREAM_VERSION = $(shell echo $(DEB_UPSTREAM_VERSION) | sed -n -e 's/\.dfsg.*$$//p')
 
-# The directories below are versioned.  We only support the packages for the
-# stable version of Octave
-octver = 3.2
-mpath = /usr/share/octave/packages/$(octver)
-bpath = /usr/lib/octave/packages/$(octver)
+# Get the appropriate paths for the installation of the Octave files
+mpath = $(shell octave-config -p LOCALFCNFILEDIR)
+bpath = $(shell octave-config -p LOCALARCHLIBDIR)
 
 # The following hack is necessary because the upstream makefiles do
 # not install $libdir and $includedir or $mandir

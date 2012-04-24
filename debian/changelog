@@ -1,3 +1,14 @@
+sundials (2.5.0-1) unstable; urgency=low
+
+  * New upstream release
+  * Remove sh4.patch
+  * Standards-Version changed to 3.9.3
+
+  [Kamaraju Kusumanchi][Rafael Laboissiere]
+  * Adjust for the new octave package version 3.6.1 (closes: #668830)
+
+ -- Christophe Trophime <christophe.trophime@lncmi.cnrs.fr>  Tue, 24 Apr 2012 08:49:39 +0200
+
 sundials (2.4.0-6) unstable; urgency=low
 
   * Rebuild using the last version of hdf5.

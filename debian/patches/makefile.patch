@@ -446,3 +446,20 @@ Index: sundials-2.4.0/examples/kinsol/serial/Makefile.in
  	done ; \
  	fi
  	$(rminstalldirs) $(EXS_INSTDIR)/kinsol/serial
+Index: sundials-2.5.0/Makefile.in
+===================================================================
+--- sundials-2.5.0.orig/Makefile.in	2012-04-24 09:28:20.000000000 +0200
++++ sundials-2.5.0/Makefile.in	2012-04-24 09:28:23.000000000 +0200
+@@ -59,9 +59,9 @@
+ 
+ install:
+ 	$(mkinstalldirs) $(bindir)
+-	$(INSTALL_PROG)  $(top_builddir)/bin/sundials-config    $(bindir)/
+-	@if test -f $(top_builddir)/bin/fortran-update.sh ; then              \
+-	  $(INSTALL_PROG)  $(top_builddir)/bin/fortran-update.sh  $(bindir)/ ;\
++	$(INSTALL_PROG)  $(top_srcdir)/bin/sundials-config    $(bindir)/
++	@if test -f $(top_srcdir)/bin/fortran-update.sh ; then              \
++	  $(INSTALL_PROG)  $(top_srcdir)/bin/fortran-update.sh  $(bindir)/ ;\
+ 	fi
+ 	@for i in ${SLV_MODULES} ; do                                         \
+ 	   if test -d $${i} ; then                                            \

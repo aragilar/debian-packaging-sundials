@@ -1,2 +1,2 @@
-usr/share/octave/packages
-usr/lib/octave/packages
+usr/share/octave/
+usr/lib/*/octave/
