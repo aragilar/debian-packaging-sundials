@@ -1,4 +1,6 @@
+cmake.patch
 makefile.patch
 #sh4.patch
 fix-format-error.patch
 octave-sundialstb.patch
+sundials-config.patch

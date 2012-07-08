@@ -48,11 +48,6 @@ libsundials_fnvecserial.so.0 libsundials-nvecserial0 #MINVER#
  F2C_IDA_vecQB@Base 2.5.0
  F2C_IDA_vecS@Base 2.5.0
  F2C_KINSOL_vec@Base 2.5.0
- RAbs@Base 2.5.0
- RExp@Base 2.5.0
- RPowerI@Base 2.5.0
- RPowerR@Base 2.5.0
- RSqrt@Base 2.5.0
  fnvinits_@Base 2.5.0
  fnvinits_b_@Base 2.5.0
  fnvinits_q_@Base 2.5.0

@@ -1,94 +1,114 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
 
-include /usr/share/cdbs/1/rules/debhelper.mk
-include /usr/share/cdbs/1/class/autotools.mk
-include /usr/share/cdbs/1/rules/patchsys-quilt.mk
-
 #include /usr/share/hardening-includes/hardening.make
 #
-#CFLAGS=$(shell dpkg-buildflags --get CFLAGS)
-#LDFLAGS=$(shell dpkg-buildflags --get LDFLAGS)
-#CFLAGS+=$(HARDENING_CFLAGS)
-#LDFLAGS+=$(HARDENING_LDFLAGS)
+CPPFLAGS:=$(shell dpkg-buildflags --get CPPFLAGS)
+CFLAGS:=$(shell dpkg-buildflags --get CFLAGS) $(CPPFLAGS)
+CXXFLAGS:=$(shell dpkg-buildflags --get CXXFLAGS) $(CPPFLAGS)
+LDFLAGS:=$(shell dpkg-buildflags --get LDFLAGS)
 
-debusr := $(DEB_DESTDIR)usr
-debexp = debian/libsundials-serial-dev/usr/share/doc/libsundials-serial-dev/examples
 
-DEB_AUTO_UPDATE_AUTOMAKE := 1.11
+#workaround to start MPI-applications in chroot
+export OMPI_MCA_plm_rsh_agent=/bin/false
 
-DEB_CONFIGURE_EXTRA_FLAGS := --enable-shared --disable-mpi --enable-examples
-DEB_CONFIGURE_SCRIPT_ENV += F77="gfortran"
-DEB_MAKE_INSTALL_TARGET := install prefix=$(debusr) EXS_INSTDIR=$(DEB_DESTDIR)$(debexp)
+extra_flags += \
+   -DCMAKE_Fortran_COMPILER=gfortran \
+   -DBUILD_SHARED_LIBS:BOOL=ON \
+   -DFCMIX_ENABLE:BOOL=ON \
+   -DMPI_ENABLE:BOOL=ON \
+   -DLAPACK_ENABLE:BOOL=ON \
+   -DEXAMPLES_ENABLE:BOOL=ON \
+   -DEXAMPLES_INSTALL:BOOL=OFF
 
-DEB_INSTALL_MANPAGES_libsundials-serial-dev := debian/sundials-config.1
-DEB_INSTALL_EXAMPLES_libsundials-serial-dev := examples/*
-DEB_DH_INSTALL_SOURCEDIR = $(DEB_DESTDIR)
-
-DEB_COMPRESS_EXCLUDE = .c .out .f
-
-USCAN_DESTDIR := $(CURDIR)/../tarballs
-DEB_STRIPPED_UPSTREAM_VERSION = $(shell echo $(DEB_UPSTREAM_VERSION) | sed -n -e 's/\.dfsg.*$$//p')
+BUILDDIR = $(CURDIR)/debian/build
 
 # Get the appropriate paths for the installation of the Octave files
 mpath = $(shell octave-config -p LOCALFCNFILEDIR)
-bpath = $(shell octave-config -p LOCALARCHLIBDIR)
+bpath = $(shell octave-config -p LOCALOCTFILEDIR)
 
-# The following hack is necessary because the upstream makefiles do
-# not install $libdir and $includedir or $mandir
-common-install-prehook-impl::
-	mkdir -p $(debusr)/lib
-	mkdir -p $(debusr)/include
-	mkdir -p $(debusr)/share/man/man1
 
-build/libsundials-serial::
-	$(SHELL) debian/check.sh
+%:
+	dh $@ --buildsystem=cmake  --builddirectory=$(BUILDDIR) --parallel
 
-build/octave-sundials::
+override_dh_auto_configure:
+	dh_auto_configure -- $(extra_flags)
+
+override_dh_auto_test:
+	dh_auto_test
+	echo "Running test..."
+	$(SHELL) debian/check.sh $(BUILDDIR) $(CURDIR)
+
+override_dh_auto_build:
+	dh_auto_build 
+
+#
+#build/octave-sundials::
 	mkdir -p sundialsTB/octave
 	cd sundialsTB && octave -fV install_STB.m
-	strip sundialsTB/octave/sundialsTB/cvodes/cvm/cvm.mex
-	strip sundialsTB/octave/sundialsTB/idas/idm/idm.mex
-	strip sundialsTB/octave/sundialsTB/kinsol/kim/kim.mex
 
-install/octave-sundials::
-	mkdir -p debian/tmp/$(mpath)
+override_dh_auto_install:
+	dh_auto_install
+#
+#install/octave-sundials::
 	mkdir -p debian/tmp/$(bpath)/sundialsTB/cvodes/cvm/
 	mv sundialsTB/octave/sundialsTB/cvodes/cvm/cvm.mex debian/tmp/$(bpath)/sundialsTB/cvodes/cvm
 	mkdir -p debian/tmp/$(bpath)/sundialsTB/idas/idm/
 	mv sundialsTB/octave/sundialsTB/idas/idm/idm.mex debian/tmp/$(bpath)/sundialsTB/idas/idm
 	mkdir -p debian/tmp/$(bpath)/sundialsTB/kinsol/kim
 	mv sundialsTB/octave/sundialsTB/kinsol/kim/kim.mex debian/tmp/$(bpath)/sundialsTB/kinsol/kim
+
+	mkdir -p debian/tmp/$(mpath)
 	mv sundialsTB/octave/* debian/tmp/$(mpath)
 	rm debian/tmp/$(mpath)/sundialsTB/LICENSE
 
-binary-install/libsundials-serial-dev::
-	find $(deblib) \( -name \*.la \) -exec rm -rf {} +
-	find $(debexp) \( -name \*.libs \) -exec rm -rf {} +
-	find $(debexp) \
-	        -type f -a ! \( -name README -o -name \*.out		\
-				   -o -name \*.f -o -name \*.c \)	\
-		-a -exec rm -f \{\} \;
+	dh_install -a -Nlibsundials-doc
+	dh_install -plibsundials-doc -X.txt -X.out -X.in -XREADME
 
-clean::
+#
+#to generate symbols
+#	dpkg-gensymbols -plibsundials-parallel -O
+
+override_dh_strip:
+	find debian/tmp/$(bpath) -name \*.mex | xargs -r strip
+
+	dh_strip -plibsundials-cvode1 --dbg-package=libsundials-serial-dbg 
+	dh_strip -plibsundials-cvodes2 --dbg-package=libsundials-serial-dbg
+	dh_strip -plibsundials-ida2 --dbg-package=libsundials-serial-dbg
+	dh_strip -plibsundials-idas0 --dbg-package=libsundials-serial-dbg
+	dh_strip -plibsundials-kinsol1 --dbg-package=libsundials-serial-dbg
+	dh_strip -plibsundials-nvecserial0 --dbg-package=libsundials-serial-dbg
+
+	dh_strip -plibsundials-nvecparallel0 --dbg-package=libsundials-nvecparallel-dbg
+	dh_strip -a
+
+	ls -l debian/tmp/usr/lib
+
+override_dh_auto_clean:
 	find examples \
-	        -type f -a  \( -name \*.o -o -name \*.out \)	\
+	        -type f -a  \( -name \*.o \)	\
 		-a -exec rm -f \{\} \;
 	find sundialsTB \
 	        -type f -a  \( -name \*.o -o -name \*.mex \)	\
 		-a -exec rm -f \{\} \;
 	rm -rf sundialsTB/octave
 	rm -rf bin/makefile-update.sh
-	
+	dh_auto_clean
+
+# Grab the version before +dfsg
+DEB_UPSTREAM_VERSION=$(shell dpkg-parsechangelog | sed -rne 's,^Version: ([^+]+).*,\1,p')
+DEB_STRIPPED_UPSTREAM_VERSION = $(shell echo $(DEB_UPSTREAM_VERSION) | sed 's/-[^-]*$$//')
+
+USCAN_DESTDIR := $(CURDIR)/../tarballs
+
 
 get-orig-source:
 	mkdir -p $(USCAN_DESTDIR)
 	uscan --force-download  --no-symlink --verbose --destdir $(USCAN_DESTDIR)
-	tar -C $(USCAN_DESTDIR) -xzf $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)_$(DEB_STRIPPED_UPSTREAM_VERSION).orig.tar.gz
-	rm -f $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)*.tar.gz
-	find $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION) -name \*.pdf | xargs rm
+	tar -C $(USCAN_DESTDIR) -xzf $(USCAN_DESTDIR)/sundials_$(DEB_STRIPPED_UPSTREAM_VERSION).orig.tar.gz
+	rm -f $(USCAN_DESTDIR)/sundials*.tar.gz
+	find $(USCAN_DESTDIR)/sundials-$(DEB_STRIPPED_UPSTREAM_VERSION) -name \*.pdf | xargs rm
 	cd $(USCAN_DESTDIR) && GZIP=-9 tar -czf \
-	   $(CURDIR)/$(DEB_SOURCE_PACKAGE)_$(DEB_UPSTREAM_VERSION).orig.tar.gz \
-	   $(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION)
-	rm -rf $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION)
-	
+	   $(CURDIR)/sundials_$(DEB_UPSTREAM_VERSION).orig.tar.gz \
+	   sundials-$(DEB_STRIPPED_UPSTREAM_VERSION)
+	rm -rf $(USCAN_DESTDIR)/sundials-$(DEB_STRIPPED_UPSTREAM_VERSION)

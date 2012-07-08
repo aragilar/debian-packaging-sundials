@@ -1,4 +1,21 @@
-usr/include
-usr/lib/lib*a
-usr/lib/lib*.so
-usr/bin/sundials-config
+usr/lib/libsundials_cvode*.a
+usr/lib/libsundials_cvode*.so
+usr/lib/libsundials_ida*.a
+usr/lib/libsundials_ida*.so
+usr/lib/libsundials_kinsol.a
+usr/lib/libsundials_*serial.a
+usr/lib/libsundials_*serial.so
+
+usr/lib/libsundials_kinsol.so
+
+usr/include/cvode
+usr/include/cvodes
+usr/include/ida
+usr/include/idas
+usr/include/kinsol
+usr/include/nvector/nvector_serial.h
+usr/include/sundials
+
+bin/sundials-config usr/bin
+
+debian/sundials-config.1 usr/share/man/man1
