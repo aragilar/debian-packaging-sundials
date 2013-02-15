@@ -1,22 +1,9 @@
-sundials (2.5.0-2~exp1) experimental; urgency=low
+sundials (2.5.0-2) unstable; urgency=low
 
-  [ Andrew Miller ]
-  * Fix spelling of suite (closes: #680881)
-  * Add a -dbg package (closes: #680878)
-
-  [ Rafael Laboissiere ]
   * debian/rules:
-      - Install .mex files in the appropriate directory
+      - Add -lblas -llapack -lm to LDFLAGS (closes: #700525)
 
-  * Switch to buildsystem to cmake
-  * Switch to debhelper 9
-  * Switch to dpkg-source 3.0 (quilt) format
-
-  * Add support for parallel version
-  * Add a separate package for examples
-  * Modify check.sh to run serial tests
-
- -- Christophe Trophime <christophe.trophime@lncmi.cnrs.fr>  Mon, 9 Jul 2012 09:40:03 +1200
+ -- Christophe Trophime <christophe.trophime@lncmi.cnrs.fr>  Fri, 15 Feb 2013 11:40:09 +0100
 
 sundials (2.5.0-1) unstable; urgency=low
 

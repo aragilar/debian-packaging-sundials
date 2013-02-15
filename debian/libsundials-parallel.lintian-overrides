@@ -1,2 +1,0 @@
-# This package will install all serial libraries
-libsundials-parallel: empty-binary-package

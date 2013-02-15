@@ -1,5 +1,1 @@
 sundials source: ancient-libtool config/ltmain.sh 1.4.3
-# We are using cmake
-sundials source: outdated-autotools-helper-file config/config.sub 2005-12-11
-sundials source: outdated-autotools-helper-file config/config.guess 2005-12-13
-

@@ -1,6 +1,0 @@
-usr/lib/libsundials_nvecparallel.a
-usr/lib/libsundials_fnvecparallel.a
-usr/lib/libsundials_nvecparallel.so
-usr/lib/libsundials_fnvecparallel.so
-
-usr/include/nvector/nvector_parallel.h
