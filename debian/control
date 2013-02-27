@@ -81,7 +81,9 @@ Description: vector operations library (SUNDIALS library)
 Package: libsundials-serial-dev
 Section: libdevel
 Architecture: any
-Depends: libsundials-serial (= ${binary:Version}), ${misc:Depends}
+Depends: libsundials-serial (= ${binary:Version}), ${misc:Depends},
+ libblas-dev | libatlas-base-dev | libopenblas-dev,
+ liblapack-dev | libatlas-base-dev
 Description: SUNDIALS development files
  The family of solvers referred to as SUNDIALS (SUit of Nonlinear and
  DIfferential/ALgebraic equation Solvers) consists of solvers CVODE
@@ -109,7 +111,7 @@ Description: SUNDIALS development files
 
 Package: octave-sundials
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, ${octave:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}, octave
 Recommends: libsundials-serial-dev
 Description: SUNDIALS  for octave
  The family of solvers referred to as SUNDIALS (SUit of Nonlinear and

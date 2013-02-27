@@ -1,3 +1,18 @@
+sundials (2.5.0-3) unstable; urgency=low
+
+  * Team upload.
+  * Revert changes from experimental version which inadvertently made it into
+    the previous upload.
+  * Improve the fix for missing BLAS and LAPACK dependencies (closes: #700525)
+    + no longer pass BLAS and LAPACK through LDFLAGS
+    + link-blas-lapack.patch: new patch which rather adds the dependencies at
+      the libtool link level
+    + add missing dependency of libsundials-serial-dev on libblas-dev and
+      liblapack-dev
+  * Fix the dependency of octave-sundials on octave.
+
+ -- Sébastien Villemot <sebastien@debian.org>  Wed, 27 Feb 2013 16:58:32 +0100
+
 sundials (2.5.0-2) unstable; urgency=low
 
   * debian/rules:
