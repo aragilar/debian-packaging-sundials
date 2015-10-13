@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:35 $
+ * $Revision: 1.7 $
+ * $Date: 2008/04/16 21:18:22 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Aaron Collier @ LLNL
  * -----------------------------------------------------------------
@@ -34,7 +34,7 @@
  *
  * The user-callable functions in this package, with the corresponding
  * IDA and IDABBDPRE functions, are as follows: 
- *   FIDABBDININT   interfaces to IDABBDPrecAlloc
+ *   FIDABBDININT   interfaces to IDABBDPrecInit
  *   FIDABBDSPGMR   interfaces to IDABBDSpgmr and IDASpilsSet*
  *   FIDABBDSPBCG   interfaces to IDABBDSpbcg and IDASpilsSet*
  *   FIDABBDSPTFQMR interfaces to IDABBDSptfqmr and IDASpilsSet*
@@ -201,7 +201,13 @@
  * with FLAG = 1 to specify that FIDAEWT is provided.
  * The return flag IER is 0 if successful, and nonzero otherwise.
  *
- * (4.3) To allocate memory and initialize data associated with the IDABBDPRE
+ * (4.3) Attach one of the 3 SPILS linear solvers. Make one of the 
+ * following calls (see fida.h) for more details.
+ *       CALL FIDASPGMR(MAXL, IGSTYPE, MAXRS, EPLIFAC, DQINCFAC, IER)
+ *       CALL FIDASPBCG(MAXL, EPLIFAC, DQINCFAC, IER)
+ *       CALL FIDASPTFQMR(MAXL, EPLIFAC, DQINCFAC, IER)
+ *
+ * (4.4) To allocate memory and initialize data associated with the IDABBDPRE
  * preconditioner, make the following call:
  *       CALL FIDABBDINIT(NLOCAL, MUDQ, MLDQ, MU, ML, DQRELY, IER)
  * The arguments are:
@@ -216,39 +222,6 @@
  *             These may be smaller than MUDQ and MLDQ.
  * DQRELY    = relative increment factor in y for difference quotients
  *             (optional). 0.0 indicates the default, sqrt(UNIT_ROUNDOFF).
- * IER       = return completion flag: IER=0: success, IER<0: an error occured
- *
- * (4.4A) To specify the SPTFQMR linear system solver and use it with the IDABBDPRE
- * preconditioner, make the following call:
- *       CALL FIDABBDSPTFQMR(MAXL, EPLIFAC, DQINCFAC, IER)
- * the arguments are:
- * MAXL      = maximum Krylov subspace dimension; 0 indicates default.
- * EPLIFAC   = factor in the linear iteration convergence test constant
- * DQINCFAC  = factor in the increments to y used in the difference quotient
- *             approximations to matrix-vector products Jv
- * IER       = return completion flag: IER=0: success, IER<0: an error occured
- *
- * (4.4B) To specify the SPBCG linear system solver and use it with the IDABBDPRE
- * preconditioner, make the following call:
- *       CALL FIDABBDSPBCG(MAXL, EPLIFAC, DQINCFAC, IER)
- * the arguments are:
- * MAXL      = maximum Krylov subspace dimension; 0 indicates default.
- * EPLIFAC   = factor in the linear iteration convergence test constant
- * DQINCFAC  = factor in the increments to y used in the difference quotient
- *             approximations to matrix-vector products Jv
- * IER       = return completion flag: IER=0: success, IER<0: an error occured
- *
- * (4.4C) To specify the SPGMR linear system solver and use it with the IDABBDPRE
- * preconditioner, make the following call:
- *       CALL FIDABBDSPGMR(MAXL, IGSTYPE, MAXRS, EPLIFAC, DQINCFAC, IER)
- *
- * the arguments are:
- * MAXL      = maximum Krylov subspace dimension; 0 indicates default.
- * IGSTYPE   = Gram-schmidt process type: 1 = modified G-S, 1 = classical G-S.
- * MAXRS     = maximum number of GMRES restarts
- * EPLIFAC   = factor in the linear iteration convergence test constant
- * DQINCFAC  = factor in the increments to y used in the difference quotient
- *             approximations to matrix-vector products Jv
  * IER       = return completion flag: IER=0: success, IER<0: an error occured
  *
  * (4.5) To specify whether the linear solver should use the supplied FIDAJTIMES or the 
@@ -307,10 +280,9 @@
  *            This size is local to the current process.
  * NGEBBD   = number of G(t,y,y') evaluations (calls to FIDAGLOCFN) so far.
  *
- * (8) Memory freeing: FIDABBDFREE and FIDAFREE
- * To the free the internal memory created by the calls to FNVINITP,
- * FIDAMALLOC, and FIDABBDINIT, make the following calls, in this order:
- *       CALL FIDABBDFREE
+ * (8) Memory freeing: FIDAFREE
+ * To the free the internal memory created by the calls to FNVINITP and
+ * FIDAMALLOC, make the following call:
  *       CALL FIDAFREE
  *
  * ==============================================================================
@@ -329,110 +301,30 @@ extern "C" {
 #if defined(F77_FUNC)
 
 #define FIDA_BBDINIT    F77_FUNC(fidabbdinit, FIDABBDINIT)
-#define FIDA_BBDSPTFQMR F77_FUNC(fidabbdsptfqmr, FIDABBDSPTFQMR)
-#define FIDA_BBDSPBCG   F77_FUNC(fidabbdspbcg, FIDABBDSPBCG)
-#define FIDA_BBDSPGMR   F77_FUNC(fidabbdspgmr, FIDABBDSPGMR)
 #define FIDA_BBDREINIT  F77_FUNC(fidabbdreinit, FIDABBDREINIT)
 #define FIDA_BBDOPT     F77_FUNC(fidabbdopt, FIDABBDOPT)
-#define FIDA_BBDFREE    F77_FUNC(fidabbdfree, FIDABBDFREE)
 #define FIDA_GLOCFN     F77_FUNC(fidaglocfn, FIDAGLOCFN)
 #define FIDA_COMMFN     F77_FUNC(fidacommfn, FIDACOMMFN)
 
-#elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_LOWER)
-
-#define FIDA_BBDINIT    fidabbdinit
-#define FIDA_BBDSPTFQMR fidabbdsptfqmr
-#define FIDA_BBDSPBCG   fidabbdspbcg
-#define FIDA_BBDSPGMR   fidabbdspgmr
-#define FIDA_BBDREINIT  fidabbdreinit
-#define FIDA_BBDOPT     fidabbdopt
-#define FIDA_BBDFREE    fidabbdfree
-#define FIDA_GLOCFN     fidaglocfn
-#define FIDA_COMMFN     fidacommfn
-
-#elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_UPPER)
-
-#define FIDA_BBDINIT    FIDABBDINIT
-#define FIDA_BBDSPTFQMR FIDABBDSPTFQMR
-#define FIDA_BBDSPBCG   FIDABBDSPBCG
-#define FIDA_BBDSPGMR   FIDABBDSPGMR
-#define FIDA_BBDREINIT  FIDABBDREINIT
-#define FIDA_BBDOPT     FIDABBDOPT
-#define FIDA_BBDFREE    FIDABBDFREE
-#define FIDA_GLOCFN     FIDAGLOCFN
-#define FIDA_COMMFN     FIDACOMMFN
-
-#elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_LOWER)
+#else
 
 #define FIDA_BBDINIT    fidabbdinit_
-#define FIDA_BBDSPTFQMR fidabbdsptfqmr_
-#define FIDA_BBDSPBCG   fidabbdspbcg_
-#define FIDA_BBDSPGMR   fidabbdspgmr_
 #define FIDA_BBDREINIT  fidabbdreinit_
 #define FIDA_BBDOPT     fidabbdopt_
-#define FIDA_BBDFREE    fidabbdfree_
 #define FIDA_GLOCFN     fidaglocfn_
 #define FIDA_COMMFN     fidacommfn_
-
-#elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_UPPER)
-
-#define FIDA_BBDINIT    FIDABBDINIT_
-#define FIDA_BBDSPTFQMR FIDABBDSPTFQMR_
-#define FIDA_BBDSPBCG   FIDABBDSPBCG_
-#define FIDA_BBDSPGMR   FIDABBDSPGMR_
-#define FIDA_BBDREINIT  FIDABBDREINIT_
-#define FIDA_BBDOPT     FIDABBDOPT_
-#define FIDA_BBDFREE    FIDABBDFREE_
-#define FIDA_GLOCFN     FIDAGLOCFN_
-#define FIDA_COMMFN     FIDACOMMFN_
-
-#elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_LOWER)
-
-#define FIDA_BBDINIT    fidabbdinit__
-#define FIDA_BBDSPTFQMR fidabbdsptfqmr__
-#define FIDA_BBDSPBCG   fidabbdspbcg__
-#define FIDA_BBDSPGMR   fidabbdspgmr__
-#define FIDA_BBDREINIT  fidabbdreinit__
-#define FIDA_BBDOPT     fidabbdopt__
-#define FIDA_BBDFREE    fidabbdfree__
-#define FIDA_GLOCFN     fidaglocfn__
-#define FIDA_COMMFN     fidacommfn__
-
-#elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_UPPER)
-
-#define FIDA_BBDINIT    FIDABBDINIT__
-#define FIDA_BBDSPTFQMR FIDABBDSPTFQMR__
-#define FIDA_BBDSPBCG   FIDABBDSPBCG__
-#define FIDA_BBDSPGMR   FIDABBDSPGMR__
-#define FIDA_BBDREINIT  FIDABBDREINIT__
-#define FIDA_BBDOPT     FIDABBDOPT__
-#define FIDA_BBDFREE    FIDABBDFREE__
-#define FIDA_GLOCFN     FIDAGLOCFN__
-#define FIDA_COMMFN     FIDACOMMFN__
 
 #endif
 
 /* Prototypes of exported functions */
 
-void FIDA_BBDINIT(long int *Nloc, long int *mudq, long int *mldq,
-		  long int *mu, long int *ml, realtype *dqrely, int *ier);
-void FIDA_BBDSPTFQMR(int *maxl, realtype *eplifac, realtype *dqincfac, int *ier);
-void FIDA_BBDSPBCG(int *maxl, realtype *eplifac, realtype *dqincfac, int *ier);
-void FIDA_BBDSPGMR(int *maxl, int *gstype, int *maxrs,
-		   realtype *eplifac, realtype *dqincfac, int *ier);
-void FIDA_BBDREINIT(long int *Nloc, long int *mudq, long int *mldq,
-		    realtype *dqrely, int *ier);
+void FIDA_BBDINIT(int *Nloc, int *mudq, int *mldq, int *mu, int *ml, realtype *dqrely, int *ier);
 void FIDA_BBDOPT(long int *lenrwbbd, long int *leniwbbd, long int *ngebbd);
-void FIDA_BBDFREE(void);
 
 /* Prototypes: Functions Called by the IDABBD Module */
 
-int FIDAgloc(long int Nloc, realtype t, N_Vector yy, N_Vector yp,
-	     N_Vector gval, void *res_data);
-int FIDAcfn(long int Nloc, realtype t, N_Vector yy, N_Vector yp,
-	    void *res_data);
-
-void *IDABBD_Data;
+int FIDAgloc(int Nloc, realtype t, N_Vector yy, N_Vector yp, N_Vector gval, void *user_data);
+int FIDAcfn(int Nloc, realtype t, N_Vector yy, N_Vector yp, void *user_data);
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,4 @@
-function [] = CVodeSensToggleOff()
+function status = CVodeSensToggleOff()
 % CVodeSensToggleOff deactivates sensitivity calculations.
 %   It does NOT deallocate sensitivity-related memory so that 
 %   sensitivity computations can be later toggled ON (through
@@ -6,11 +6,11 @@ function [] = CVodeSensToggleOff()
 %
 %   Usage: CVodeSensToggleOff
 %
-%   See also: CVodeSensMalloc, CVodeSensReInit
+%   See also: CVodeSensInit, CVodeSensReInit
 
 % Radu Serban <radu@llnl.gov>
-% Copyright (c) 2005, The Regents of the University of California.
-% $Revision: 1.2 $Date: 2006/07/07 19:08:40 $
+% Copyright (c) 2007, The Regents of the University of California.
+% $Revision: 1.3 $Date: 2007/12/05 21:58:18 $
 
-mode = 13;
-cvm(mode);
+mode = 18;
+status = cvm(mode);

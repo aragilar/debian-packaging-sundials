@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:35 $
+ * $Revision: 1.5 $
+ * $Date: 2007/04/30 19:29:00 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Aaron Collier @ LLNL
  * -----------------------------------------------------------------
@@ -40,11 +40,11 @@
 extern "C" {
 #endif
 
-  extern void FIDA_GLOCFN(long int*, 
+  extern void FIDA_GLOCFN(int*, 
                           realtype*, realtype*, realtype*, realtype*, 
                           long int*, realtype*,
                           int*);
-  extern void FIDA_COMMFN(long int*, 
+  extern void FIDA_COMMFN(int*, 
                           realtype*, realtype*, realtype*, 
                           long int*, realtype*,
                           int*);
@@ -55,111 +55,31 @@ extern "C" {
 
 /*************************************************/
 
-void FIDA_BBDINIT(long int *Nloc, long int *mudq, long int *mldq,
-		  long int *mu, long int *ml, realtype *dqrely, int *ier)
+void FIDA_BBDINIT(int *Nloc, int *mudq, int *mldq,
+		  int *mu, int *ml, realtype *dqrely, int *ier)
 {
-  IDABBD_Data = IDABBDPrecAlloc(IDA_idamem, *Nloc, *mudq, *mldq, *mu, *ml,
-				*dqrely, (IDABBDLocalFn) FIDAgloc, (IDABBDCommFn) FIDAcfn);
-  if (IDABBD_Data == NULL) *ier = -1;
-  else *ier = 0;
+  *ier = IDABBDPrecInit(IDA_idamem, *Nloc, *mudq, *mldq, *mu, *ml,
+                        *dqrely, (IDABBDLocalFn) FIDAgloc, (IDABBDCommFn) FIDAcfn);
 
   return;
 }
 
 /*************************************************/
 
-void FIDA_BBDSPTFQMR(int *maxl, realtype *eplifac, realtype *dqincfac, int *ier)
-{
-  *ier = 0;
-
-  *ier = IDABBDSptfqmr(IDA_idamem, *maxl, IDABBD_Data);
-  if (*ier != IDASPILS_SUCCESS) return;
-
-  *ier = IDASpilsSetEpsLin(IDA_idamem, *eplifac);
-  if (*ier != IDASPILS_SUCCESS) return;
-
-  if (*dqincfac != ZERO) {
-    *ier = IDASpilsSetIncrementFactor(IDA_idamem, *dqincfac);
-    if (*ier != IDASPILS_SUCCESS) return;
-  }
-
-  IDA_ls = IDA_LS_SPTFQMR;
-
-  return;
-}
-
-/*************************************************/
-
-void FIDA_BBDSPBCG(int *maxl, realtype *eplifac, realtype *dqincfac, int *ier)
-{
-  *ier = 0;
-
-  *ier = IDABBDSpbcg(IDA_idamem, *maxl, IDABBD_Data);
-  if (*ier != IDASPILS_SUCCESS) return;
-
-  *ier = IDASpilsSetEpsLin(IDA_idamem, *eplifac);
-  if (*ier != IDASPILS_SUCCESS) return;
-
-  if (*dqincfac != ZERO) {
-    *ier = IDASpilsSetIncrementFactor(IDA_idamem, *dqincfac);
-    if (*ier != IDASPILS_SUCCESS) return;
-  }
-
-  IDA_ls = IDA_LS_SPBCG;
-
-  return;
-}
-
-/*************************************************/
-
-void FIDA_BBDSPGMR(int *maxl, int *gstype, int *maxrs,
-		   realtype *eplifac, realtype *dqincfac, int *ier)
-{
-  *ier = 0;
-
-  *ier = IDABBDSpgmr(IDA_idamem, *maxl, IDABBD_Data);
-  if (*ier != IDASPILS_SUCCESS) return;
-
-  if (*gstype != 0) {
-    *ier = IDASpilsSetGSType(IDA_idamem, *gstype);
-    if (*ier != IDASPILS_SUCCESS) return;
-  }
-
-  if (*maxrs != 0) {
-    *ier = IDASpilsSetMaxRestarts(IDA_idamem, *maxrs);
-    if (*ier != IDASPILS_SUCCESS) return;
-  }
-
-  *ier = IDASpilsSetEpsLin(IDA_idamem, *eplifac);
-  if (*ier != IDASPILS_SUCCESS) return;
-
-  if (*dqincfac != ZERO) {
-    *ier = IDASpilsSetIncrementFactor(IDA_idamem, *dqincfac);
-    if (*ier != IDASPILS_SUCCESS) return;
-  }
-
-  IDA_ls = IDA_LS_SPGMR;
-
-  return;
-}
-
-/*************************************************/
-
-void FIDA_BBDREINIT(long int *Nloc, long int *mudq, long int *mldq,
+void FIDA_BBDREINIT(int *Nloc, int *mudq, int *mldq,
 		    realtype *dqrely, int *ier)
 {
   *ier = 0;
 
-  *ier = IDABBDPrecReInit(IDABBD_Data, *mudq, *mldq,
-			  *dqrely, (IDABBDLocalFn) FIDAgloc, (IDABBDCommFn) FIDAcfn);
+  *ier = IDABBDPrecReInit(IDA_idamem, *mudq, *mldq, *dqrely);
 
   return;
 }
 
 /*************************************************/
 
-int FIDAgloc(long int Nloc, realtype t, N_Vector yy, N_Vector yp,
-	     N_Vector gval, void *res_data)
+int FIDAgloc(int Nloc, realtype t, N_Vector yy, N_Vector yp,
+	     N_Vector gval, void *user_data)
 {
   realtype *yy_data, *yp_data, *gval_data;
   int ier;
@@ -179,7 +99,7 @@ int FIDAgloc(long int Nloc, realtype t, N_Vector yy, N_Vector yp,
   yp_data   = N_VGetArrayPointer(yp);
   gval_data = N_VGetArrayPointer(gval);
 
-  IDA_userdata = (FIDAUserData) res_data;
+  IDA_userdata = (FIDAUserData) user_data;
 
   /* Call user-supplied routine */
   FIDA_GLOCFN(&Nloc, &t, yy_data, yp_data, gval_data, 
@@ -190,8 +110,8 @@ int FIDAgloc(long int Nloc, realtype t, N_Vector yy, N_Vector yp,
 
 /*************************************************/
 
-int FIDAcfn(long int Nloc, realtype t, N_Vector yy, N_Vector yp,
-	    void *res_data)
+int FIDAcfn(int Nloc, realtype t, N_Vector yy, N_Vector yp,
+	    void *user_data)
 {
   realtype *yy_data, *yp_data;
   int ier;
@@ -210,7 +130,7 @@ int FIDAcfn(long int Nloc, realtype t, N_Vector yy, N_Vector yp,
   yy_data = N_VGetArrayPointer(yy);
   yp_data = N_VGetArrayPointer(yp);
 
-  IDA_userdata = (FIDAUserData) res_data;
+  IDA_userdata = (FIDAUserData) user_data;
 
   /* Call user-supplied routine */
   FIDA_COMMFN(&Nloc, &t, yy_data, yp_data, 
@@ -223,17 +143,8 @@ int FIDAcfn(long int Nloc, realtype t, N_Vector yy, N_Vector yp,
 
 void FIDA_BBDOPT(long int *lenrwbbd, long int *leniwbbd, long int *ngebbd)
 {
-  IDABBDPrecGetWorkSpace(IDABBD_Data, lenrwbbd, leniwbbd);
-  IDABBDPrecGetNumGfnEvals(IDABBD_Data, ngebbd);
-
-  return;
-}
-
-/*************************************************/
-
-void FIDA_BBDFREE(void)
-{
-  IDABBDPrecFree(&IDABBD_Data);
+  IDABBDPrecGetWorkSpace(IDA_idamem, lenrwbbd, leniwbbd);
+  IDABBDPrecGetNumGfnEvals(IDA_idamem, ngebbd);
 
   return;
 }

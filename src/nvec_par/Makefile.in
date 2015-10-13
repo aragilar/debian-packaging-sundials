@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
-# $Revision: 1.4 $
-# $Date: 2006/08/11 23:03:23 $
+# $Revision: 1.8 $
+# $Date: 2007/01/29 17:36:28 $
 # -----------------------------------------------------------------
 # Programmer(s): Radu Serban and Aaron Collier @ LLNL
 # -----------------------------------------------------------------
@@ -48,9 +48,9 @@ FCMIX_ENABLED = @FCMIX_ENABLED@
 
 top_srcdir = $(srcdir)/../..
 
-INCLUDES = -I$(top_builddir)/src -I$(top_srcdir)/include -I$(MPI_INC_DIR)
+INCLUDES = -I$(top_srcdir)/include -I$(top_builddir)/include -I$(MPI_INC_DIR)
 
-LIB_REVISION = 0:1:0
+LIB_REVISION = 0:2:0
 
 NVECPAR_LIB       = libsundials_nvecparallel.la
 NVECPAR_LIB_FILES = nvector_parallel.lo
@@ -61,6 +61,7 @@ FNVECPAR_LIB_FILES = fnvector_parallel.lo
 SHARED_LIB_FILES = $(top_builddir)/src/sundials/sundials_math.lo
 
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/mkinstalldirs
+rminstalldirs = $(SHELL) $(top_srcdir)/config/rminstalldirs
 
 all: $(NVECPAR_LIB) $(FNVECPAR_LIB)
 
@@ -68,9 +69,9 @@ $(NVECPAR_LIB): shared $(NVECPAR_LIB_FILES)
 	$(LIBTOOL) --mode=link $(MPICC) $(CFLAGS) $(MPI_FLAGS) -o $(NVECPAR_LIB) $(NVECPAR_LIB_FILES) $(SHARED_LIB_FILES) $(LDFLAGS) -L$(MPI_LIB_DIR) $(MPI_LIBS) $(LIBS) -rpath $(libdir) -version-info $(LIB_REVISION)
 
 $(FNVECPAR_LIB): $(FNVECPAR_LIB_FILES)
-	@if test "X${FCMIX_ENABLED}" = "Xyes"; then                                                                                                                                                                                            \
-	   echo "${LIBTOOL} --mode=link ${MPICC} ${CFLAGS} ${MPI_FLAGS} -o ${FNVECPAR_LIB} ${FNVECPAR_LIB_FILES} ${SHARED_LIB_FILES} ${LDFLAGS} -L${MPI_LIB_DIR} ${MPI_LIBS} ${LIBS} -rpath ${libdir} -static -version-info ${LIB_REVISION}" ; \
-	   ${LIBTOOL} --mode=link ${MPICC} ${CFLAGS} ${MPI_FLAGS} -o ${FNVECPAR_LIB} ${FNVECPAR_LIB_FILES} ${SHARED_LIB_FILES} ${LDFLAGS} -L${MPI_LIB_DIR} ${MPI_LIBS} ${LIBS} -rpath ${libdir} -static -version-info ${LIB_REVISION} ;        \
+	@if test "X${FCMIX_ENABLED}" = "Xyes"; then                                                                                                                                                                                    \
+	   echo "${LIBTOOL} --mode=link ${MPICC} ${CFLAGS} ${MPI_FLAGS} -o ${FNVECPAR_LIB} ${FNVECPAR_LIB_FILES} ${SHARED_LIB_FILES} ${LDFLAGS} -L${MPI_LIB_DIR} ${MPI_LIBS} ${LIBS} -rpath ${libdir} -version-info ${LIB_REVISION}" ; \
+	   ${LIBTOOL} --mode=link ${MPICC} ${CFLAGS} ${MPI_FLAGS} -o ${FNVECPAR_LIB} ${FNVECPAR_LIB_FILES} ${SHARED_LIB_FILES} ${LDFLAGS} -L${MPI_LIB_DIR} ${MPI_LIBS} ${LIBS} -rpath ${libdir} -version-info ${LIB_REVISION} ;        \
 	 fi
 
 install: $(NVECPAR_LIB) $(FNVECPAR_LIB)
@@ -85,14 +86,12 @@ install: $(NVECPAR_LIB) $(FNVECPAR_LIB)
 
 uninstall:
 	$(LIBTOOL) --mode=uninstall rm -f $(libdir)/$(NVECPAR_LIB)
-	rm -f $(includedir)/nvector/nvector_parallel.h
-	@if test -d ${includedir}/nvector ; then \
-	   rm -rf ${includedir}/nvector ;        \
-	 fi
 	@if test "X${FCMIX_ENABLED}" = "Xyes"; then                             \
 	   echo "${LIBTOOL} --mode=uninstall rm -f ${libdir}/${FNVECPAR_LIB}" ; \
 	   ${LIBTOOL} --mode=uninstall rm -f ${libdir}/${FNVECPAR_LIB} ;        \
 	 fi
+	rm -f $(includedir)/nvector/nvector_parallel.h
+	$(rminstalldirs) ${includedir}/nvector
 
 shared:
 	@cd ${top_builddir}/src/sundials ; \

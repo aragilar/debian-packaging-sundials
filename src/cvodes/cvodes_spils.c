@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:34 $
+ * $Revision: 1.10 $
+ * $Date: 2008/09/03 20:26:21 $
  * ----------------------------------------------------------------- 
  * Programmer(s):Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -34,6 +34,42 @@
 #define MAX_ITERS  3  /* max. number of attempts to recover in DQ J*v */
 
 /* 
+ * =================================================================
+ * PRIVATE FUNCTION PROTOTYPES
+ * =================================================================
+ */
+
+/* 
+ * cvSpilsPrecSetupBWrapper has type CVSpilsPrecSetupFn
+ * It wraps around the user-provided function of type CVSpilsPrecSetupFnB
+ */
+
+static int cvSpilsPrecSetupBWrapper(realtype t, N_Vector yB, 
+                                    N_Vector fyB, booleantype jokB, 
+                                    booleantype *jcurPtrB, realtype gammaB,
+                                    void *cvode_mem,
+                                    N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B);
+
+/* 
+ * cvSpilsPrecSolveBWrapper has type CVSpilsPrecSolveFn 
+ * It wraps around the user-provided function of type CVSpilsPrecSolveFnB
+ */
+
+static int cvSpilsPrecSolveBWrapper(realtype t, N_Vector yB, N_Vector fyB,
+                                    N_Vector rB, N_Vector zB,
+                                    realtype gammaB, realtype deltaB,
+                                    int lrB, void *cvode_mem, N_Vector tmpB);
+  
+/* 
+ * cvSpilsJacTimesVecBWrapper has type CVSpilsJacTimesVecFn 
+ * It wraps around the user-provided function of type CVSpilsJacTimesVecFnB
+ */
+
+static int cvSpilsJacTimesVecBWrapper(N_Vector vB, N_Vector JvB, realtype t, 
+                                      N_Vector yB, N_Vector fyB, 
+                                      void *cvode_mem, N_Vector tmpB);
+
+/* 
  * ================================================================
  *
  *                   PART I - forward problems
@@ -43,31 +79,35 @@
 
 /* Readability Replacements */
 
-#define lrw1    (cv_mem->cv_lrw1)
-#define liw1    (cv_mem->cv_liw1)
-#define tq      (cv_mem->cv_tq)
-#define tn      (cv_mem->cv_tn)
-#define h       (cv_mem->cv_h)
-#define gamma   (cv_mem->cv_gamma)
-#define nfe     (cv_mem->cv_nfe)
-#define f       (cv_mem->cv_f)
-#define f_data  (cv_mem->cv_f_data)
-#define ewt     (cv_mem->cv_ewt)
-#define lmem    (cv_mem->cv_lmem)
+#define lrw1      (cv_mem->cv_lrw1)
+#define liw1      (cv_mem->cv_liw1)
+#define tq        (cv_mem->cv_tq)
+#define tn        (cv_mem->cv_tn)
+#define h         (cv_mem->cv_h)
+#define gamma     (cv_mem->cv_gamma)
+#define nfe       (cv_mem->cv_nfe)
+#define f         (cv_mem->cv_f)
+#define user_data (cv_mem->cv_user_data)
+#define ewt       (cv_mem->cv_ewt)
+#define lmem      (cv_mem->cv_lmem)
 
 #define ils_type (cvspils_mem->s_type)
-#define sqrtN   (cvspils_mem->s_sqrtN)   
-#define ytemp   (cvspils_mem->s_ytemp)
-#define x       (cvspils_mem->s_x)
-#define ycur    (cvspils_mem->s_ycur)
-#define fcur    (cvspils_mem->s_fcur)
-#define delta   (cvspils_mem->s_delta)
-#define npe     (cvspils_mem->s_npe)
-#define nli     (cvspils_mem->s_nli)
-#define nps     (cvspils_mem->s_nps)
-#define ncfl    (cvspils_mem->s_ncfl)
-#define njtimes (cvspils_mem->s_njtimes)
-#define nfes    (cvspils_mem->s_nfes)
+#define sqrtN    (cvspils_mem->s_sqrtN)   
+#define ytemp    (cvspils_mem->s_ytemp)
+#define x        (cvspils_mem->s_x)
+#define ycur     (cvspils_mem->s_ycur)
+#define fcur     (cvspils_mem->s_fcur)
+#define delta    (cvspils_mem->s_delta)
+#define npe      (cvspils_mem->s_npe)
+#define nli      (cvspils_mem->s_nli)
+#define nps      (cvspils_mem->s_nps)
+#define ncfl     (cvspils_mem->s_ncfl)
+#define njtimes  (cvspils_mem->s_njtimes)
+#define nfes     (cvspils_mem->s_nfes)
+
+#define jtimesDQ (cvspils_mem->s_jtimesDQ)
+#define jtimes   (cvspils_mem->s_jtimes)
+#define j_data   (cvspils_mem->s_j_data)
 
 #define last_flag (cvspils_mem->s_last_flag)
 
@@ -92,13 +132,13 @@ int CVSpilsSetPrecType(void *cvode_mem, int pretype)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetPrecType", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetPrecType", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetPrecType", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetPrecType", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -106,7 +146,7 @@ int CVSpilsSetPrecType(void *cvode_mem, int pretype)
   /* Check for legal pretype */ 
   if ((pretype != PREC_NONE) && (pretype != PREC_LEFT) &&
       (pretype != PREC_RIGHT) && (pretype != PREC_BOTH)) {
-    CVProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetPrecType", MSGS_BAD_PRETYPE);
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetPrecType", MSGS_BAD_PRETYPE);
     return(CVSPILS_ILL_INPUT);
   }
 
@@ -128,25 +168,25 @@ int CVSpilsSetGSType(void *cvode_mem, int gstype)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetGSType", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetGSType", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetGSType", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetGSType", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
 
   if (ils_type != SPILS_SPGMR) {
-    CVProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetGSType", MSGS_BAD_LSTYPE);
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetGSType", MSGS_BAD_LSTYPE);
     return(CVSPILS_ILL_INPUT);
   }
 
   /* Check for legal gstype */
   if ((gstype != MODIFIED_GS) && (gstype != CLASSICAL_GS)) {
-    CVProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetGSType", MSGS_BAD_GSTYPE);
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetGSType", MSGS_BAD_GSTYPE);
     return(CVSPILS_ILL_INPUT);
   }
 
@@ -169,19 +209,19 @@ int CVSpilsSetMaxl(void *cvode_mem, int maxl)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetMaxl", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetMaxl", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(NULL, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetMaxl", MSGS_LMEM_NULL);
+    cvProcessError(NULL, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetMaxl", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
 
   if (ils_type == SPILS_SPGMR) {
-    CVProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetMaxl", MSGS_BAD_LSTYPE);
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetMaxl", MSGS_BAD_LSTYPE);
     return(CVSPILS_ILL_INPUT);
   }
 
@@ -196,35 +236,35 @@ int CVSpilsSetMaxl(void *cvode_mem, int maxl)
 
 /*
  * -----------------------------------------------------------------
- * CVSpilsSetDelt
+ * CVSpilsSetEpsLin
  * -----------------------------------------------------------------
  */
 
-int CVSpilsSetDelt(void *cvode_mem, realtype delt)
+int CVSpilsSetEpsLin(void *cvode_mem, realtype eplifac)
 {
   CVodeMem cv_mem;
   CVSpilsMem cvspils_mem;
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetDelt", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetEpsLin", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetDelt", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetEpsLin", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
 
-  /* Check for legal delt */
-  if(delt < ZERO) {
-    CVProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetDelt", MSGS_BAD_DELT);
+  /* Check for legal eplifac */
+  if(eplifac < ZERO) {
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetEpsLin", MSGS_BAD_EPLIN);
     return(CVSPILS_ILL_INPUT);
   }
 
-  cvspils_mem->s_delt = (delt == ZERO) ? CVSPILS_DELT : delt;
+  cvspils_mem->s_eplifac = (eplifac == ZERO) ? CVSPILS_EPLIN : eplifac;
 
   return(CVSPILS_SUCCESS);
 }
@@ -235,28 +275,27 @@ int CVSpilsSetDelt(void *cvode_mem, realtype delt)
  * -----------------------------------------------------------------
  */
 
-int CVSpilsSetPreconditioner(void *cvode_mem, CVSpilsPrecSetupFn pset, 
-                             CVSpilsPrecSolveFn psolve, void *P_data)
+int CVSpilsSetPreconditioner(void *cvode_mem,
+                             CVSpilsPrecSetupFn pset, CVSpilsPrecSolveFn psolve)
 {
   CVodeMem cv_mem;
   CVSpilsMem cvspils_mem;
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetPreconditioner", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetPreconditioner", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetPreconditioner", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetPreconditioner", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
 
   cvspils_mem->s_pset = pset;
   cvspils_mem->s_psolve = psolve;
-  if (psolve != NULL) cvspils_mem->s_P_data = P_data;
 
   return(CVSPILS_SUCCESS);
 }
@@ -267,26 +306,30 @@ int CVSpilsSetPreconditioner(void *cvode_mem, CVSpilsPrecSetupFn pset,
  * -----------------------------------------------------------------
  */
 
-int CVSpilsSetJacTimesVecFn(void *cvode_mem, CVSpilsJacTimesVecFn jtimes, void *jac_data)
+int CVSpilsSetJacTimesVecFn(void *cvode_mem, CVSpilsJacTimesVecFn jtv)
 {
   CVodeMem cv_mem;
   CVSpilsMem cvspils_mem;
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetJacTimesVecFn", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetJacTimesVecFn", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetJacTimesVecFn", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsSetJacTimesVecFn", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
 
-  cvspils_mem->s_jtimes = jtimes;
-  if (jtimes != NULL) cvspils_mem->s_j_data = jac_data;
+  if (jtv != NULL) {
+    jtimesDQ = FALSE;
+    jtimes = jtv;
+  } else {
+    jtimesDQ = TRUE;
+  }
 
   return(CVSPILS_SUCCESS);
 }
@@ -305,13 +348,13 @@ int CVSpilsGetWorkSpace(void *cvode_mem, long int *lenrwLS, long int *leniwLS)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetWorkSpace", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetWorkSpace", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetWorkSpace", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetWorkSpace", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -350,13 +393,13 @@ int CVSpilsGetNumPrecEvals(void *cvode_mem, long int *npevals)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumPrecEvals", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumPrecEvals", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumPrecEvals", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumPrecEvals", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -379,13 +422,13 @@ int CVSpilsGetNumPrecSolves(void *cvode_mem, long int *npsolves)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumPrecSolves", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumPrecSolves", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumPrecSolves", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumPrecSolves", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -408,13 +451,13 @@ int CVSpilsGetNumLinIters(void *cvode_mem, long int *nliters)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumLinIters", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumLinIters", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumLinIters", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumLinIters", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -437,13 +480,13 @@ int CVSpilsGetNumConvFails(void *cvode_mem, long int *nlcfails)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumConvFails", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumConvFails", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumConvFails", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumConvFails", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -466,13 +509,13 @@ int CVSpilsGetNumJtimesEvals(void *cvode_mem, long int *njvevals)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumJtimesEvals", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumJtimesEvals", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumJtimesEvals", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumJtimesEvals", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -495,13 +538,13 @@ int CVSpilsGetNumRhsEvals(void *cvode_mem, long int *nfevalsLS)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumRhsEvals", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetNumRhsEvals", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumRhsEvals", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetNumRhsEvals", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -524,13 +567,13 @@ int CVSpilsGetLastFlag(void *cvode_mem, int *flag)
 
   /* Return immediately if cvode_mem is NULL */
   if (cvode_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetLastFlag", MSGS_CVMEM_NULL);
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsGetLastFlag", MSGS_CVMEM_NULL);
     return(CVSPILS_MEM_NULL);
   }
   cv_mem = (CVodeMem) cvode_mem;
 
   if (lmem == NULL) {
-    CVProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetLastFlag", MSGS_LMEM_NULL);
+    cvProcessError(cv_mem, CVSPILS_LMEM_NULL, "CVSPILS", "CVSpilsGetLastFlag", MSGS_LMEM_NULL);
     return(CVSPILS_LMEM_NULL);
   }
   cvspils_mem = (CVSpilsMem) lmem;
@@ -568,8 +611,11 @@ char *CVSpilsGetReturnFlagName(int flag)
   case CVSPILS_MEM_FAIL:
     sprintf(name,"CVSPILS_MEM_FAIL");
     break;
-  case CVSPILS_ADJMEM_NULL:
-    sprintf(name,"CVSPILS_ADJMEM_NULL");
+  case CVSPILS_PMEM_NULL:
+    sprintf(name,"CVSPILS_PMEM_NULL");
+    break;
+  case CVSPILS_NO_ADJ:
+    sprintf(name,"CVSPILS_NO_ADJ");
     break;
   case CVSPILS_LMEMB_NULL:
     sprintf(name,"CVSPILS_LMEMB_NULL");
@@ -591,12 +637,10 @@ char *CVSpilsGetReturnFlagName(int flag)
 /* Additional readability Replacements */
 
 #define pretype (cvspils_mem->s_pretype)
-#define delt    (cvspils_mem->s_delt)
+#define eplifac (cvspils_mem->s_eplifac)
 #define maxl    (cvspils_mem->s_maxl)
 #define psolve  (cvspils_mem->s_psolve)
 #define P_data  (cvspils_mem->s_P_data)
-#define jtimes  (cvspils_mem->s_jtimes)
-#define j_data  (cvspils_mem->s_j_data)
 
 /*
  * -----------------------------------------------------------------
@@ -670,15 +714,15 @@ int CVSpilsPSolve(void *cvode_mem, N_Vector r, N_Vector z, int lr)
 
 int CVSpilsDQJtimes(N_Vector v, N_Vector Jv, realtype t, 
                     N_Vector y, N_Vector fy,
-                    void *jac_data, N_Vector work)
+                    void *data, N_Vector work)
 {
   CVodeMem cv_mem;
   CVSpilsMem cvspils_mem;
   realtype sig, siginv;
   int iter, retval;
 
-  /* jac_data is cvode_mem */
-  cv_mem = (CVodeMem) jac_data;
+  /* data is cvode_mem */
+  cv_mem = (CVodeMem) data;
   cvspils_mem = (CVSpilsMem) lmem;
 
   /* Initialize perturbation to 1/||v|| */
@@ -690,7 +734,7 @@ int CVSpilsDQJtimes(N_Vector v, N_Vector Jv, realtype t,
     N_VLinearSum(sig, v, ONE, y, work);
 
     /* Set Jv = f(tn, y+sig*v) */
-    retval = f(t, work, Jv, f_data); 
+    retval = f(t, work, Jv, user_data); 
     nfes++;
     if (retval == 0) break;
     if (retval < 0)  return(-1);
@@ -717,15 +761,13 @@ int CVSpilsDQJtimes(N_Vector v, N_Vector Jv, realtype t,
 
 /* Readability replacements */
 
-#define ytmp        (ca_mem->ca_ytmp)
-#define getY        (ca_mem->ca_getY)
-#define lmemB       (ca_mem->ca_lmemB)
+#define ytmp  (ca_mem->ca_ytmp)
+#define yStmp (ca_mem->ca_yStmp)
+#define IMget (ca_mem->ca_IMget)
 
-#define pset_B      (cvspilsB_mem->s_psetB)
-#define psolve_B    (cvspilsB_mem->s_psolveB)
-#define jtimes_B    (cvspilsB_mem->s_jtimesB)
-#define P_data_B    (cvspilsB_mem->s_P_dataB)
-#define jac_data_B  (cvspilsB_mem->s_jac_dataB)
+#define pset_B     (cvspilsB_mem->s_psetB)
+#define psolve_B   (cvspilsB_mem->s_psolveB)
+#define jtimes_B   (cvspilsB_mem->s_jtimesB)
 
 /*
  * -----------------------------------------------------------------
@@ -733,139 +775,279 @@ int CVSpilsDQJtimes(N_Vector v, N_Vector Jv, realtype t,
  * -----------------------------------------------------------------
  */
 
-int CVSpilsSetPrecTypeB(void *cvadj_mem, int pretypeB)
+int CVSpilsSetPrecTypeB(void *cvode_mem, int which, int pretypeB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
-  CVodeMem cvB_mem;
+  CVodeBMem cvB_mem;
+  void *cvodeB_mem;
   int flag;
 
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_ADJMEM_NULL, "CVSPILS", "CVSpilsSetPrecTypeB", MSGS_CAMEM_NULL);
-    return(CVSPILS_ADJMEM_NULL);
+  /* Check if cvode_mem exists */
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetPrecTypeB", MSGS_CVMEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
-  ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = (CVodeMem) cvode_mem;
 
-  cvB_mem = ca_mem->cvb_mem;
+  /* Was ASA initialized? */
+  if (cv_mem->cv_adjMallocDone == FALSE) {
+    cvProcessError(cv_mem, CVSPILS_NO_ADJ, "CVSPILS", "CVSpilsSetPrecTypeB", MSGS_NO_ADJ);
+    return(CVSPILS_NO_ADJ);
+  } 
+  ca_mem = cv_mem->cv_adj_mem;
 
-  flag = CVSpilsSetPrecType(cvB_mem, pretypeB);
+  /* Check which */
+  if ( which >= ca_mem->ca_nbckpbs ) {
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetPrecTypeB", MSGS_BAD_WHICH);
+    return(CVSPILS_ILL_INPUT);
+  }
+
+  /* Find the CVodeBMem entry in the linked list corresponding to which */
+  cvB_mem = ca_mem->cvB_mem;
+  while (cvB_mem != NULL) {
+    if ( which == cvB_mem->cv_index ) break;
+    cvB_mem = cvB_mem->cv_next;
+  }
+
+  cvodeB_mem = (void *) (cvB_mem->cv_mem);
+
+  flag = CVSpilsSetPrecType(cvodeB_mem, pretypeB);
 
   return(flag);
 }
 
-int CVSpilsSetGSTypeB(void *cvadj_mem, int gstypeB)
+int CVSpilsSetGSTypeB(void *cvode_mem, int which, int gstypeB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
-  CVodeMem cvB_mem;
+  CVodeBMem cvB_mem;
+  void *cvodeB_mem;
   int flag;
 
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_ADJMEM_NULL, "CVSPILS", "CVSpilsSetGSTypeB", MSGS_CAMEM_NULL);
-    return(CVSPILS_ADJMEM_NULL);
+  /* Check if cvode_mem exists */
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetGSTypeB", MSGS_CVMEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
-  ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = (CVodeMem) cvode_mem;
 
-  cvB_mem = ca_mem->cvb_mem;
+  /* Was ASA initialized? */
+  if (cv_mem->cv_adjMallocDone == FALSE) {
+    cvProcessError(cv_mem, CVSPILS_NO_ADJ, "CVSPILS", "CVSpilsSetGSTypeB", MSGS_NO_ADJ);
+    return(CVSPILS_NO_ADJ);
+  } 
+  ca_mem = cv_mem->cv_adj_mem;
 
-  flag = CVSpilsSetGSType(cvB_mem,gstypeB);
+  /* Check which */
+  if ( which >= ca_mem->ca_nbckpbs ) {
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetGSTypeB", MSGS_BAD_WHICH);
+    return(CVSPILS_ILL_INPUT);
+  }
+
+  /* Find the CVodeBMem entry in the linked list corresponding to which */
+  cvB_mem = ca_mem->cvB_mem;
+  while (cvB_mem != NULL) {
+    if ( which == cvB_mem->cv_index ) break;
+    cvB_mem = cvB_mem->cv_next;
+  }
+
+  cvodeB_mem = (void *) (cvB_mem->cv_mem);
+
+  flag = CVSpilsSetGSType(cvodeB_mem,gstypeB);
 
   return(flag);
 }
 
-int CVSpilsSetDeltB(void *cvadj_mem, realtype deltB)
+int CVSpilsSetEpsLinB(void *cvode_mem, int which, realtype eplifacB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
-  CVodeMem cvB_mem;
+  CVodeBMem cvB_mem;
+  void *cvodeB_mem;
   int flag;
 
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_ADJMEM_NULL, "CVSPILS", "CVSpilsSetDeltB", MSGS_CAMEM_NULL);
-    return(CVSPILS_ADJMEM_NULL);
+  /* Check if cvode_mem exists */
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetEpsLinB", MSGS_CVMEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
-  ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = (CVodeMem) cvode_mem;
 
-  cvB_mem = ca_mem->cvb_mem;
+  /* Was ASA initialized? */
+  if (cv_mem->cv_adjMallocDone == FALSE) {
+    cvProcessError(cv_mem, CVSPILS_NO_ADJ, "CVSPILS", "CVSpilsSetEpsLinB", MSGS_NO_ADJ);
+    return(CVSPILS_NO_ADJ);
+  } 
+  ca_mem = cv_mem->cv_adj_mem;
 
-  flag = CVSpilsSetDelt(cvB_mem,deltB);
+  /* Check which */
+  if ( which >= ca_mem->ca_nbckpbs ) {
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetEpsLinB", MSGS_BAD_WHICH);
+    return(CVSPILS_ILL_INPUT);
+  }
+
+  /* Find the CVodeBMem entry in the linked list corresponding to which */
+  cvB_mem = ca_mem->cvB_mem;
+  while (cvB_mem != NULL) {
+    if ( which == cvB_mem->cv_index ) break;
+    cvB_mem = cvB_mem->cv_next;
+  }
+
+  cvodeB_mem = (void *) (cvB_mem->cv_mem);
+
+  flag = CVSpilsSetEpsLin(cvodeB_mem,eplifacB);
 
   return(flag);
 }
 
-int CVSpilsSetMaxlB(void *cvadj_mem, int maxlB)
+int CVSpilsSetMaxlB(void *cvode_mem, int which, int maxlB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
-  CVodeMem cvB_mem;
+  CVodeBMem cvB_mem;
+  void *cvodeB_mem;
   int flag;
 
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_ADJMEM_NULL, "CVSPILS", "CVSpilsSetMaxlB", MSGS_CAMEM_NULL);
-    return(CVSPILS_ADJMEM_NULL);
+  /* Check if cvode_mem exists */
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetMaxlB", MSGS_CVMEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
-  ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = (CVodeMem) cvode_mem;
 
-  cvB_mem = ca_mem->cvb_mem;
+  /* Was ASA initialized? */
+  if (cv_mem->cv_adjMallocDone == FALSE) {
+    cvProcessError(cv_mem, CVSPILS_NO_ADJ, "CVSPILS", "CVSpilsSetMaxlB", MSGS_NO_ADJ);
+    return(CVSPILS_NO_ADJ);
+  } 
+  ca_mem = cv_mem->cv_adj_mem;
 
-  flag = CVSpilsSetMaxl(cvB_mem,maxlB);
+  /* Check which */
+  if ( which >= ca_mem->ca_nbckpbs ) {
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetMaxlB", MSGS_BAD_WHICH);
+    return(CVSPILS_ILL_INPUT);
+  }
+
+  /* Find the CVodeBMem entry in the linked list corresponding to which */
+  cvB_mem = ca_mem->cvB_mem;
+  while (cvB_mem != NULL) {
+    if ( which == cvB_mem->cv_index ) break;
+    cvB_mem = cvB_mem->cv_next;
+  }
+
+  cvodeB_mem = (void *) (cvB_mem->cv_mem);
+
+  flag = CVSpilsSetMaxl(cvodeB_mem,maxlB);
 
   return(flag);
 }
 
-int CVSpilsSetPreconditionerB(void *cvadj_mem, CVSpilsPrecSetupFnB psetB,
-                              CVSpilsPrecSolveFnB psolveB, void *P_dataB)
+int CVSpilsSetPreconditionerB(void *cvode_mem, int which, 
+                              CVSpilsPrecSetupFnB psetB,
+                              CVSpilsPrecSolveFnB psolveB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
+  CVodeBMem cvB_mem;
   CVSpilsMemB cvspilsB_mem; 
-  CVodeMem cvB_mem;
+  void *cvodeB_mem;
   int flag;
 
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_ADJMEM_NULL, "CVSPILS", "CVSpilsSetPreconditionerB", MSGS_CAMEM_NULL);
-    return(CVSPILS_ADJMEM_NULL);
+  /* Check if cvode_mem exists */
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetPreconsitionerB", MSGS_CVMEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
-  ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = (CVodeMem) cvode_mem;
 
-  cvB_mem = ca_mem->cvb_mem;
+  /* Was ASA initialized? */
+  if (cv_mem->cv_adjMallocDone == FALSE) {
+    cvProcessError(cv_mem, CVSPILS_NO_ADJ, "CVSPILS", "CVSpilsSetPreconsitionerB", MSGS_NO_ADJ);
+    return(CVSPILS_NO_ADJ);
+  } 
+  ca_mem = cv_mem->cv_adj_mem;
 
-  if (lmemB == NULL) {
-    CVProcessError(cvB_mem, CVSPILS_LMEMB_NULL, "CVSPILS", "CVSpilsSetPreconditonerB", MSGS_LMEMB_NULL);
+  /* Check which */
+  if ( which >= ca_mem->ca_nbckpbs ) {
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetPreconsitionerB", MSGS_BAD_WHICH);
+    return(CVSPILS_ILL_INPUT);
+  }
+
+  /* Find the CVodeBMem entry in the linked list corresponding to which */
+  cvB_mem = ca_mem->cvB_mem;
+  while (cvB_mem != NULL) {
+    if ( which == cvB_mem->cv_index ) break;
+    cvB_mem = cvB_mem->cv_next;
+  }
+
+  cvodeB_mem = (void *) (cvB_mem->cv_mem);
+
+  if (cvB_mem->cv_lmem == NULL) {
+    cvProcessError(cv_mem, CVSPILS_LMEMB_NULL, "CVSPILS", "CVSpilsSetPreconditonerB", MSGS_LMEMB_NULL);
     return(CVSPILS_LMEMB_NULL);
   }
-  cvspilsB_mem = (CVSpilsMemB) lmemB;
+  cvspilsB_mem = (CVSpilsMemB) (cvB_mem->cv_lmem);
 
   pset_B   = psetB;
   psolve_B = psolveB;
-  P_data_B = P_dataB;
 
-  flag = CVSpilsSetPreconditioner(cvB_mem, CVAspilsPrecSetup, CVAspilsPrecSolve, cvadj_mem);
+  flag = CVSpilsSetPreconditioner(cvodeB_mem, cvSpilsPrecSetupBWrapper, cvSpilsPrecSolveBWrapper);
 
   return(flag);
 }
 
-int CVSpilsSetJacTimesVecFnB(void *cvadj_mem, CVSpilsJacTimesVecFnB jtimesB,
-                             void *jac_dataB)
+int CVSpilsSetJacTimesVecFnB(void *cvode_mem, int which, CVSpilsJacTimesVecFnB jtvB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
+  CVodeBMem cvB_mem;
   CVSpilsMemB cvspilsB_mem; 
-  CVodeMem cvB_mem;
+  void *cvodeB_mem;
   int flag;
 
-  if (cvadj_mem == NULL) {
-    CVProcessError(NULL, CVSPILS_ADJMEM_NULL, "CVSPILS", "CVSpilsSetJacTimesVecFnB", MSGS_CAMEM_NULL);
-    return(CVSPILS_ADJMEM_NULL);
+  /* Check if cvode_mem exists */
+  if (cvode_mem == NULL) {
+    cvProcessError(NULL, CVSPILS_MEM_NULL, "CVSPILS", "CVSpilsSetJacTimesVecFnB", MSGS_CVMEM_NULL);
+    return(CVSPILS_MEM_NULL);
   }
-  ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = (CVodeMem) cvode_mem;
 
-  cvB_mem = ca_mem->cvb_mem;
+  /* Was ASA initialized? */
+  if (cv_mem->cv_adjMallocDone == FALSE) {
+    cvProcessError(cv_mem, CVSPILS_NO_ADJ, "CVSPILS", "CVSpilsSetJacTimesVecFnB", MSGS_NO_ADJ);
+    return(CVSPILS_NO_ADJ);
+  } 
+  ca_mem = cv_mem->cv_adj_mem;
 
-  if (lmemB == NULL) {
-    CVProcessError(cvB_mem, CVSPILS_LMEMB_NULL, "CVSPILS", "CVSpilsSetJacTimesVecFnB", MSGS_LMEMB_NULL);
+  /* Check which */
+  if ( which >= ca_mem->ca_nbckpbs ) {
+    cvProcessError(cv_mem, CVSPILS_ILL_INPUT, "CVSPILS", "CVSpilsSetJacTimesVecFnB", MSGS_BAD_WHICH);
+    return(CVSPILS_ILL_INPUT);
+  }
+
+  /* Find the CVodeBMem entry in the linked list corresponding to which */
+  cvB_mem = ca_mem->cvB_mem;
+  while (cvB_mem != NULL) {
+    if ( which == cvB_mem->cv_index ) break;
+    cvB_mem = cvB_mem->cv_next;
+  }
+
+  cvodeB_mem = (void *) (cvB_mem->cv_mem);
+
+  if (cvB_mem->cv_lmem == NULL) {
+    cvProcessError(cv_mem, CVSPILS_LMEMB_NULL, "CVSPILS", "CVSpilsSetJacTimesVecFnB", MSGS_LMEMB_NULL);
     return(CVSPILS_LMEMB_NULL);
   }
-  cvspilsB_mem = (CVSpilsMemB) lmemB;
+  cvspilsB_mem = (CVSpilsMemB) (cvB_mem->cv_lmem);
 
-  jtimes_B   = jtimesB;
-  jac_data_B = jac_dataB;
+  jtimes_B = jtvB;
 
-  flag = CVSpilsSetJacTimesVecFn(cvB_mem, CVAspilsJacTimesVec, cvadj_mem);
+  if (jtvB != NULL) {
+    flag = CVSpilsSetJacTimesVecFn(cvodeB_mem, cvSpilsJacTimesVecBWrapper);
+  } else {
+    flag = CVSpilsSetJacTimesVecFn(cvodeB_mem, NULL);
+  }
 
   return(flag);
 }
@@ -878,110 +1060,122 @@ int CVSpilsSetJacTimesVecFnB(void *cvadj_mem, CVSpilsJacTimesVecFnB jtimesB,
  */
 
 /*
- * CVAspilsPrecSetup
+ * cvSpilsPrecSetupBWrapper
  *
  * This routine interfaces to the CVSpilsPrecSetupFnB routine 
  * provided by the user.
- * NOTE: p_data actually contains cvadj_mem
  */
 
-int CVAspilsPrecSetup(realtype t, N_Vector yB, 
-                      N_Vector fyB, booleantype jokB, 
-                      booleantype *jcurPtrB, realtype gammaB,
-                      void *cvadj_mem,
-                      N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B)
+static int cvSpilsPrecSetupBWrapper(realtype t, N_Vector yB, 
+                                    N_Vector fyB, booleantype jokB, 
+                                    booleantype *jcurPtrB, realtype gammaB,
+                                    void *cvode_mem,
+                                    N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
-  CVodeMem cvB_mem;
+  CVodeBMem cvB_mem;
   CVSpilsMemB cvspilsB_mem;
   int retval, flag;
 
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvB_mem = ca_mem->cvb_mem;
-  cvspilsB_mem = (CVSpilsMemB) lmemB;
+  cv_mem = (CVodeMem) cvode_mem;
+
+  ca_mem = cv_mem->cv_adj_mem;
+
+  cvB_mem = ca_mem->ca_bckpbCrt;
+
+  cvspilsB_mem = (CVSpilsMemB) (cvB_mem->cv_lmem);
 
   /* Forward solution from interpolation */
-  flag = getY(ca_mem, t, ytmp);
+  flag = IMget(cv_mem, t, ytmp, NULL);
   if (flag != CV_SUCCESS) {
-    CVProcessError(cvB_mem, -1, "CVSPILS", "CVAspilsPrecSetup", MSGS_BAD_T);
+    cvProcessError(cv_mem, -1, "CVSPILS", "cvSpilsPrecSetupBWrapper", MSGS_BAD_TINTERP);
     return(-1);
   } 
 
   /* Call user's adjoint precondB routine */
   retval = pset_B(t, ytmp, yB, fyB, jokB, jcurPtrB, gammaB,
-                  P_data_B, tmp1B, tmp2B, tmp3B);
+                  cvB_mem->cv_user_data, tmp1B, tmp2B, tmp3B);
 
   return(retval);
 }
 
 
 /*
- * CVAspilsPrecSolve
+ * cvSpilsPrecSolveBWrapper
  *
  * This routine interfaces to the CVSpilsPrecSolveFnB routine 
  * provided by the user.
- * NOTE: p_data actually contains cvadj_mem
  */
 
-int CVAspilsPrecSolve(realtype t, N_Vector yB, N_Vector fyB,
-                      N_Vector rB, N_Vector zB,
-                      realtype gammaB, realtype deltaB,
-                      int lrB, void *cvadj_mem, N_Vector tmpB)
+static int cvSpilsPrecSolveBWrapper(realtype t, N_Vector yB, N_Vector fyB,
+                                    N_Vector rB, N_Vector zB,
+                                    realtype gammaB, realtype deltaB,
+                                    int lrB, void *cvode_mem, N_Vector tmpB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
-  CVodeMem cvB_mem;
+  CVodeBMem cvB_mem;
   CVSpilsMemB cvspilsB_mem;
   int retval, flag;
 
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvB_mem = ca_mem->cvb_mem;
-  cvspilsB_mem = (CVSpilsMemB) lmemB;
+  cv_mem = (CVodeMem) cvode_mem;
+
+  ca_mem = cv_mem->cv_adj_mem;
+
+  cvB_mem = ca_mem->ca_bckpbCrt;
+
+  cvspilsB_mem = (CVSpilsMemB) (cvB_mem->cv_lmem);
 
   /* Forward solution from interpolation */
-  flag = getY(ca_mem, t, ytmp);
+  flag = IMget(cv_mem, t, ytmp, NULL);
   if (flag != CV_SUCCESS) {
-    CVProcessError(cvB_mem, -1, "CVSPILS", "CVAspilsPrecSolve", MSGS_BAD_T);
+    cvProcessError(cv_mem, -1, "CVSPILS", "cvSpilsPrecSolveBWrapper", MSGS_BAD_TINTERP);
     return(-1);
   }
 
   /* Call user's adjoint psolveB routine */
   retval = psolve_B(t, ytmp, yB, fyB, rB, zB, gammaB, deltaB, 
-                    lrB, P_data_B, tmpB);
+                    lrB, cvB_mem->cv_user_data, tmpB);
 
   return(retval);
 }
 
 
 /*
- * CVAspilsJacTimesVec
+ * cvSpilsJacTimesVecBWrapper
  *
  * This routine interfaces to the CVSpilsJacTimesVecFnB routine 
  * provided by the user.
- * NOTE: jac_data actually contains cvadj_mem
  */
 
-int CVAspilsJacTimesVec(N_Vector vB, N_Vector JvB, realtype t, 
-                        N_Vector yB, N_Vector fyB, 
-                        void *cvadj_mem, N_Vector tmpB)
+static int cvSpilsJacTimesVecBWrapper(N_Vector vB, N_Vector JvB, realtype t, 
+                                      N_Vector yB, N_Vector fyB, 
+                                      void *cvode_mem, N_Vector tmpB)
 {
+  CVodeMem cv_mem;
   CVadjMem ca_mem;
-  CVodeMem cvB_mem;
+  CVodeBMem cvB_mem;
   CVSpilsMemB cvspilsB_mem;
   int retval, flag;
 
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvB_mem = ca_mem->cvb_mem;
-  cvspilsB_mem = (CVSpilsMemB) lmemB;
+  cv_mem = (CVodeMem) cvode_mem;
+
+  ca_mem = cv_mem->cv_adj_mem;
+
+  cvB_mem = ca_mem->ca_bckpbCrt;
+
+  cvspilsB_mem = (CVSpilsMemB) (cvB_mem->cv_lmem);
 
   /* Forward solution from interpolation */
-  flag = getY(ca_mem, t, ytmp);
+  flag = IMget(cv_mem, t, ytmp, NULL);
   if (flag != CV_SUCCESS) {
-    CVProcessError(cvB_mem, -1, "CVSPILS", "CVAspilsJacTimesVec", MSGS_BAD_T);
+    cvProcessError(cv_mem, -1, "CVSPILS", "cvSpilsJacTimesVecBWrapper", MSGS_BAD_TINTERP);
     return(-1);
   } 
 
   /* Call user's adjoint jtimesB routine */
-  retval = jtimes_B(vB, JvB, t, ytmp, yB, fyB, jac_data_B, tmpB);
+  retval = jtimes_B(vB, JvB, t, ytmp, yB, fyB, cvB_mem->cv_user_data, tmpB);
 
   return(retval);
 }

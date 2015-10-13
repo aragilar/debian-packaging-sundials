@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
-# $Revision: 1.4 $
-# $Date: 2006/08/11 23:02:31 $
+# $Revision: 1.11 $
+# $Date: 2009/02/17 02:58:47 $
 # -----------------------------------------------------------------
 # Programmer(s): Radu Serban and Aaron Collier @ LLNL
 # -----------------------------------------------------------------
@@ -32,13 +32,14 @@ INSTALL_FILE = @INSTALL_DATA@
 LIBTOOL      = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
 
-F77      = @F77@
-FFLAGS   = @FFLAGS@
-FLIBS    = @FLIBS@
-CC       = @CC@
-LDFLAGS  = @LDFLAGS@
-LIBS     = @LIBS@
-F77_LNKR = @F77_LNKR@
+F77          = @F77@
+FFLAGS       = @FFLAGS@
+F77_LNKR     = @F77_LNKR@
+F77_LDFLAGS  = @F77_LDFLAGS@
+F77_LIBS     = @F77_LIBS@
+
+LAPACK_ENABLED = @LAPACK_ENABLED@
+BLAS_LAPACK_LIBS = @BLAS_LAPACK_LIBS@
 
 OBJ_EXT = @OBJEXT@
 EXE_EXT = @EXEEXT@
@@ -47,87 +48,88 @@ EXS_INSTDIR = @EXS_INSTDIR@
 
 top_srcdir = $(srcdir)/../../..
 
-SOLVER_SRCDIR = $(top_builddir)/src/cvode
-NVEC_SRCDIR   = $(top_builddir)/src/nvec_ser
+SUNDIALS_LIBS = $(top_builddir)/src/cvode/fcmix/libsundials_fcvode.la       \
+                $(top_builddir)/src/cvode/libsundials_cvode.la              \
+                $(top_builddir)/src/nvec_ser/libsundials_fnvecserial.la     \
+                $(top_builddir)/src/nvec_ser/libsundials_nvecserial.la
 
-SUNDIALS_LIBS = $(SOLVER_SRCDIR)/fcmix/libsundials_fcvode.la $(SOLVER_SRCDIR)/libsundials_cvode.la $(NVEC_SRCDIR)/libsundials_fnvecserial.la $(NVEC_SRCDIR)/libsundials_nvecserial.la
-
-fortran_update = ${SHELL} ${top_builddir}/examples/fortran_update.sh
-
-EXEC_FILES = fcvdenx$(EXE_EXT) \
-	     fcvbanx$(EXE_EXT) \
-	     fcvkryx$(EXE_EXT) \
-	     fcvkryx_bp$(EXE_EXT)
+fortran-update = ${SHELL} ${top_builddir}/bin/fortran-update.sh
 
 mkinstalldirs = $(SHELL) $(top_srcdir)/config/mkinstalldirs
+rminstalldirs = $(SHELL) $(top_srcdir)/config/rminstalldirs
 
-all: $(EXEC_FILES)
+EXAMPLES = fcvAdvDiff_bnd \
+	   fcvDiurnal_kry_bp \
+	   fcvDiurnal_kry \
+	   fcvRoberts_dns
 
-fcvdenx$(EXE_EXT): $(srcdir)/fcvdenx.f
-	@${fortran_update} ${srcdir} fcvdenx.f
-	 ${LIBTOOL} --mode=compile ${F77} ${FFLAGS} -c ${builddir}/fcvdenx-updated.f
-	@if test "X${F77_LNKR}" = "X${F77}"; then                                                                                                                                    \
-	   echo "${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvdenx${EXE_EXT} ${builddir}/fcvdenx-updated${OBJ_EXT} ${FFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS}" ; \
-	   ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvdenx${EXE_EXT} ${builddir}/fcvdenx-updated${OBJ_EXT} ${FFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS} ;        \
-	 else                                                                                                                                                                        \
-	   echo "${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvdenx${EXE_EXT} ${builddir}/fcvdenx-updated${OBJ_EXT} ${CFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS}" ; \
-	   ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvdenx${EXE_EXT} ${builddir}/fcvdenx-updated${OBJ_EXT} ${CFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS} ;        \
-	 fi
+EXAMPLES_BL = fcvRoberts_dnsL
 
-fcvbanx$(EXE_EXT): $(srcdir)/fcvbanx.f
-	@${fortran_update} ${srcdir} fcvbanx.f
-	 ${LIBTOOL} --mode=compile ${F77} ${FFLAGS} -c ${builddir}/fcvbanx-updated.f
-	@if test "X${F77_LNKR}" = "X${F77}"; then                                                                                                                                    \
-	   echo "${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvbanx${EXE_EXT} ${builddir}/fcvbanx-updated${OBJ_EXT} ${FFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS}" ; \
-	   ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvbanx${EXE_EXT} ${builddir}/fcvbanx-updated${OBJ_EXT} ${FFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS} ;        \
-	 else                                                                                                                                                                        \
-	   echo "${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvbanx${EXE_EXT} ${builddir}/fcvbanx-updated${OBJ_EXT} ${CFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS}" ; \
-	   ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvbanx${EXE_EXT} ${builddir}/fcvbanx-updated${OBJ_EXT} ${CFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS} ;        \
-	 fi
+OBJECTS = ${EXAMPLES:=${OBJ_EXT}}
+OBJECTS_BL = ${EXAMPLES_BL:=${OBJ_EXT}}
+EXECS = ${EXAMPLES:=${EXE_EXT}}
+EXECS_BL = ${EXAMPLES_BL:=${EXE_EXT}}
 
-fcvkryx$(EXE_EXT): $(srcdir)/fcvkryx.f
-	@${fortran_update} ${srcdir} fcvkryx.f
-	 ${LIBTOOL} --mode=compile ${F77} ${FFLAGS} -c $(builddir)/fcvkryx-updated.f
-	@if test "X${F77_LNKR}" = "X${F77}"; then                                                                                                                                    \
-	   echo "${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvkryx${EXE_EXT} ${builddir}/fcvkryx-updated${OBJ_EXT} ${FFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS}" ; \
-	   ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvkryx${EXE_EXT} ${builddir}/fcvkryx-updated${OBJ_EXT} ${FFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS} ;        \
-	 else                                                                                                                                                                        \
-	   echo "${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvkryx${EXE_EXT} ${builddir}/fcvkryx-updated${OBJ_EXT} ${CFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS}" ; \
-	   ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvkryx${EXE_EXT} ${builddir}/fcvkryx-updated${OBJ_EXT} ${CFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS} ;        \
-	 fi
+# ----------------------------------------------------------------------------------------------------------------------
 
-fcvkryx_bp$(EXE_EXT): $(srcdir)/fcvkryx_bp.f
-	@${fortran_update} ${srcdir} fcvkryx_bp.f
-	 ${LIBTOOL} --mode=compile ${F77} ${FFLAGS} -c ${builddir}/fcvkryx_bp-updated.f
-	@if test "X${F77_LNKR}" = "X${F77}"; then                                                                                                                                          \
-	   echo "${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvkryx_bp${EXE_EXT} ${builddir}/fcvkryx_bp-updated${OBJ_EXT} ${FFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS}" ; \
-	   ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvkryx_bp${EXE_EXT} ${builddir}/fcvkryx_bp-updated${OBJ_EXT} ${FFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS} ;        \
-	 else                                                                                                                                                                              \
-	   echo "${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvkryx_bp${EXE_EXT} ${builddir}/fcvkryx_bp-updated${OBJ_EXT} ${CFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS}" ; \
-	   ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/fcvkryx_bp${EXE_EXT} ${builddir}/fcvkryx_bp-updated${OBJ_EXT} ${CFLAGS} ${LDFLAGS} ${SUNDIALS_LIBS} ${LIBS} ${FLIBS} ;        \
-	 fi
+all:
+	@for i in ${EXAMPLES} ; do \
+	  ${fortran-update} ${srcdir} $${i}.f ; \
+	  ${LIBTOOL} --mode=compile ${F77} ${FFLAGS} -c ${builddir}/$${i}-updated.f ; \
+	  ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/$${i}${EXE_EXT} ${builddir}/$${i}-updated${OBJ_EXT} ${F77_LDFLAGS} ${SUNDIALS_LIBS} ${F77_LIBS} ${BLAS_LAPACK_LIBS} ; \
+	done
+	@if test "X${LAPACK_ENABLED}" = "Xyes"; then \
+	for i in ${EXAMPLES_BL} ; do \
+	  ${fortran-update} ${srcdir} $${i}.f ; \
+	  ${LIBTOOL} --mode=compile ${F77} ${FFLAGS} -c ${builddir}/$${i}-updated.f ; \
+	  ${LIBTOOL} --mode=link ${F77_LNKR} -o ${builddir}/$${i}${EXE_EXT} ${builddir}/$${i}-updated${OBJ_EXT} ${F77_LDFLAGS} ${SUNDIALS_LIBS} ${F77_LIBS} ${BLAS_LAPACK_LIBS} ; \
+	done ; \
+	fi
+
+
+install:
+	$(mkinstalldirs) $(EXS_INSTDIR)/cvode/fcmix_serial
+	$(INSTALL_FILE) Makefile_ex $(EXS_INSTDIR)/cvode/fcmix_serial/Makefile
+	$(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/README $(EXS_INSTDIR)/cvode/fcmix_serial/
+	for i in ${EXAMPLES} ; do \
+	  $(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/$${i}.f   $(EXS_INSTDIR)/cvode/fcmix_serial/ ; \
+	  $(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/$${i}.out $(EXS_INSTDIR)/cvode/fcmix_serial/ ; \
+	done
+	@if test "X${LAPACK_ENABLED}" = "Xyes"; then \
+	for i in ${EXAMPLES_BL} ; do \
+	  $(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/$${i}.f   $(EXS_INSTDIR)/cvode/fcmix_serial/ ; \
+	  $(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/$${i}.out $(EXS_INSTDIR)/cvode/fcmix_serial/ ; \
+	done ; \
+	fi
+
+uninstall:
+	rm -f $(EXS_INSTDIR)/cvode/fcmix_serial/Makefile
+	rm -f $(EXS_INSTDIR)/cvode/fcmix_serial/README
+	for i in ${EXAMPLES} ; do \
+	  rm -f $(EXS_INSTDIR)/cvode/fcmix_serial/$${i}.f ; \
+	  rm -f $(EXS_INSTDIR)/cvode/fcmix_serial/$${i}.out ; \
+	done
+	@if test "X${LAPACK_ENABLED}" = "Xyes"; then \
+	for i in ${EXAMPLES_BL} ; do \
+	  rm -f $(EXS_INSTDIR)/cvode/fcmix_serial/$${i}.f ; \
+	  rm -f $(EXS_INSTDIR)/cvode/fcmix_serial/$${i}.out ; \
+	done ; \
+	fi
+	$(rminstalldirs) $(EXS_INSTDIR)/cvode/fcmix_serial
+	$(rminstalldirs) $(EXS_INSTDIR)/cvode
 
 clean:
 	rm -rf .libs
-	rm -f *.lo
-	rm -f *.o
+	rm -f *.lo *.o
 	rm -f *-updated.f
-	rm -f fortran_update.sh
-	rm -f $(EXEC_FILES)
+	rm -f ${OBJECTS} ${OBJECTS_BL}
+	rm -f $(EXECS) $(EXECS_BL)
 
 distclean: clean
 	rm -f Makefile
+	rm -f Makefile_ex
 
-install: $(EXEC_FILES)
-	$(mkinstalldirs) $(EXS_INSTDIR)/cvode/fcmix_serial
-	$(INSTALL_PROG) $(top_builddir)/examples/cvode/fcmix_serial/fcvbanx$(EXE_EXT)    $(EXS_INSTDIR)/cvode/fcmix_serial/
-	$(INSTALL_PROG) $(top_builddir)/examples/cvode/fcmix_serial/fcvdenx$(EXE_EXT)    $(EXS_INSTDIR)/cvode/fcmix_serial/
-	$(INSTALL_PROG) $(top_builddir)/examples/cvode/fcmix_serial/fcvkryx$(EXE_EXT)    $(EXS_INSTDIR)/cvode/fcmix_serial/
-	$(INSTALL_PROG) $(top_builddir)/examples/cvode/fcmix_serial/fcvkryx_bp$(EXE_EXT) $(EXS_INSTDIR)/cvode/fcmix_serial/
-	$(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/fcvbanx.out            $(EXS_INSTDIR)/cvode/fcmix_serial/
-	$(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/fcvdenx.out            $(EXS_INSTDIR)/cvode/fcmix_serial/
-	$(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/fcvkryx.out            $(EXS_INSTDIR)/cvode/fcmix_serial/
-	$(INSTALL_FILE) $(top_srcdir)/examples/cvode/fcmix_serial/fcvkryx_bp.out         $(EXS_INSTDIR)/cvode/fcmix_serial/
+# ----------------------------------------------------------------------------------------------------------------------
 
 libtool: $(top_builddir)/$(LIBTOOL_DEPS)
 	@cd ${top_builddir} ;                 \

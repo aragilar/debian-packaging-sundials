@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:34 $
+ * $Revision: 1.4 $
+ * $Date: 2007/04/30 17:43:09 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Alan C. Hindmarsh and Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -33,28 +33,28 @@ extern "C" {
  * -----------------------------------------------------------------
  */
 
-typedef struct {
+typedef struct IBBDPrecDataRec {
 
   /* passed by user to IDABBDPrecAlloc and used by
      IDABBDPrecSetup/IDABBDPrecSolve functions */
 
-  long int mudq, mldq, mukeep, mlkeep;
+  int mudq, mldq, mukeep, mlkeep;
   realtype rel_yy;
   IDABBDLocalFn glocal;
   IDABBDCommFn gcomm;
 
- /* allocated for use by IDABBDPrecSetup */
+  /* allocated for use by IDABBDPrecSetup */
 
   N_Vector tempv4;
 
   /* set by IDABBDPrecon and used by IDABBDPrecSolve */
 
-  BandMat PP;
-  long int *pivots;
+  DlsMat PP;
+  int *pivots;
 
   /* set by IDABBDPrecAlloc and used by IDABBDPrecSetup */
 
-  long int n_local;
+  int n_local;
 
   /* available for optional output */
 
@@ -74,10 +74,11 @@ typedef struct {
  * -----------------------------------------------------------------
  */
 
-#define MSGBBD_IDAMEM_NULL "Integrator memory is NULL."
+#define MSGBBD_MEM_NULL    "Integrator memory is NULL."
+#define MSGBBD_LMEM_NULL   "Linear solver memory is NULL. One of the SPILS linear solvers must be attached."
 #define MSGBBD_MEM_FAIL    "A memory request failed."
 #define MSGBBD_BAD_NVECTOR "A required vector operation is not implemented."
-#define MSGBBD_PDATA_NULL  "BBDPrecData is NULL."
+#define MSGBBD_PMEM_NULL   "BBD peconditioner memory is NULL. IDABBDPrecInit must be called."
 #define MSGBBD_FUNC_FAILED "The Glocal or Gcomm routine failed in an unrecoverable manner."
 
 #ifdef __cplusplus

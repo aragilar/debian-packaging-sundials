@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:33 $
+ * $Revision: 1.7 $
+ * $Date: 2009/02/10 04:24:45 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Alan C. Hindmarsh, Radu Serban and
  *                Aaron Collier @ LLNL
@@ -74,9 +74,8 @@ void FCV_MALLOC(realtype *t0, realtype *y0,
                 long int *ipar, realtype *rpar,
                 int *ier)
 {
-  int lmm, iter, itol;
+  int lmm, iter;
   N_Vector Vatol;
-  void *atolptr;
   FCVUserData CV_userdata;
 
   *ier = 0;
@@ -92,7 +91,6 @@ void FCV_MALLOC(realtype *t0, realtype *y0,
   /* Initialize all pointers to NULL */
   CV_cvodemem = NULL;
   Vatol = NULL;
-  atolptr = NULL;
 
   /* Create CVODE object */
   lmm = (*meth == 1) ? CV_ADAMS : CV_BDF;
@@ -113,7 +111,7 @@ void FCV_MALLOC(realtype *t0, realtype *y0,
   CV_userdata->rpar = rpar;
   CV_userdata->ipar = ipar;
 
-  *ier = CVodeSetFdata(CV_cvodemem, CV_userdata);
+  *ier = CVodeSetUserData(CV_cvodemem, CV_userdata);
   if(*ier != CV_SUCCESS) {
     free(CV_userdata); CV_userdata = NULL;
     *ier = -1;
@@ -123,15 +121,25 @@ void FCV_MALLOC(realtype *t0, realtype *y0,
   /* Set data in F2C_CVODE_vec to y0 */
   N_VSetArrayPointer(y0, F2C_CVODE_vec);
 
-  /* Treat absolute tolerances */
-  itol = -1;
+  /* Call CVodeInit */
+  *ier = CVodeInit(CV_cvodemem, FCVf, *t0, F2C_CVODE_vec);
+
+  /* Reset data pointers */
+  N_VSetArrayPointer(NULL, F2C_CVODE_vec);
+
+  /* On failure, exit */
+  if(*ier != CV_SUCCESS) {
+    free(CV_userdata); CV_userdata = NULL;
+    *ier = -1;
+    return;
+  }
+
+  /* Set tolerances */
   switch (*iatol) {
   case 1:
-    itol = CV_SS; 
-    atolptr = (void *) atol; 
+    *ier = CVodeSStolerances(CV_cvodemem, *rtol, *atol); 
     break;
   case 2:
-    itol = CV_SV; 
     Vatol = NULL;
     Vatol = N_VCloneEmpty(F2C_CVODE_vec);
     if (Vatol == NULL) {
@@ -140,21 +148,10 @@ void FCV_MALLOC(realtype *t0, realtype *y0,
       return;
     }
     N_VSetArrayPointer(atol, Vatol);
-    atolptr = (void *) Vatol; 
-    break;
-  case 3:
-    itol = CV_WF;
+    *ier = CVodeSVtolerances(CV_cvodemem, *rtol, Vatol);
+    N_VDestroy(Vatol);
     break;
   }
-
-  /* Call CVodeMalloc */
-  *ier = CVodeMalloc(CV_cvodemem, FCVf, *t0, F2C_CVODE_vec, itol, *rtol, atolptr);
-
-  /* destroy Vatol if allocated */
-  if (itol == CV_SV) N_VDestroy(Vatol);
-
-  /* Reset data pointers */
-  N_VSetArrayPointer(NULL, F2C_CVODE_vec);
 
   /* On failure, exit */
   if(*ier != CV_SUCCESS) {
@@ -179,28 +176,34 @@ void FCV_REINIT(realtype *t0, realtype *y0,
                 int *iatol, realtype *rtol, realtype *atol, 
                 int *ier)
 {
-  int itol;
   N_Vector Vatol;
-  void *atolptr;
 
   *ier = 0;
 
   /* Initialize all pointers to NULL */
   Vatol = NULL;
-  atolptr = NULL;
 
   /* Set data in F2C_CVODE_vec to y0 */
   N_VSetArrayPointer(y0, F2C_CVODE_vec);
 
-  /* Treat absolute tolerances */
-  itol = -1;
+  /* Call CVReInit */
+  *ier = CVodeReInit(CV_cvodemem, *t0, F2C_CVODE_vec);
+
+  /* Reset data pointers */
+  N_VSetArrayPointer(NULL, F2C_CVODE_vec);
+
+  /* On failure, exit */
+  if (*ier != CV_SUCCESS) {
+    *ier = -1;
+    return;
+  }
+
+  /* Set tolerances */
   switch (*iatol) {
   case 1:
-    itol = CV_SS; 
-    atolptr = (void *) atol; 
+    *ier = CVodeSStolerances(CV_cvodemem, *rtol, *atol); 
     break;
   case 2:
-    itol = CV_SV; 
     Vatol = NULL;
     Vatol = N_VCloneEmpty(F2C_CVODE_vec);
     if (Vatol == NULL) {
@@ -208,21 +211,10 @@ void FCV_REINIT(realtype *t0, realtype *y0,
       return;
     }
     N_VSetArrayPointer(atol, Vatol);
-    atolptr = (void *) Vatol; 
-    break;
-  case 3:
-    itol = CV_WF;
+    *ier = CVodeSVtolerances(CV_cvodemem, *rtol, Vatol);
+    N_VDestroy(Vatol);
     break;
   }
-
-  /* Call CVReInit */
-  *ier = CVodeReInit(CV_cvodemem, FCVf, *t0, F2C_CVODE_vec, itol, *rtol, atolptr);
-
-  /* destroy Vatol if allocated */
-  if (itol == CV_SV) N_VDestroy(Vatol);
-
-  /* Reset data pointers */
-  N_VSetArrayPointer(NULL, F2C_CVODE_vec);
 
   /* On failure, exit */
   if (*ier != CV_SUCCESS) {
@@ -281,7 +273,7 @@ void FCV_SETRIN(char key_name[], realtype *rval, int *ier, int key_len)
 
 /***************************************************************************/
 
-void FCV_DENSE(long int *neq, int *ier)
+void FCV_DENSE(int *neq, int *ier)
 {
   /* neq  is the problem size */
 
@@ -292,7 +284,7 @@ void FCV_DENSE(long int *neq, int *ier)
 
 /***************************************************************************/
 
-void FCV_BAND(long int *neq, long int *mupper, long int *mlower, int *ier)
+void FCV_BAND(int *neq, int *mupper, int *mlower, int *ier)
 {
   /* 
      neq        is the problem size
@@ -331,7 +323,7 @@ void FCV_SPGMR(int *pretype, int *gstype, int *maxl, realtype *delt, int *ier)
   *ier = CVSpilsSetGSType(CV_cvodemem, *gstype);
   if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  *ier = CVSpilsSetEpsLin(CV_cvodemem, *delt);
   if (*ier != CVSPILS_SUCCESS) return;
 
   CV_ls = CV_LS_SPGMR;
@@ -350,7 +342,7 @@ void FCV_SPBCG(int *pretype, int *maxl, realtype *delt, int *ier)
   *ier = CVSpbcg(CV_cvodemem, *pretype, *maxl);
   if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  *ier = CVSpilsSetEpsLin(CV_cvodemem, *delt);
   if (*ier != CVSPILS_SUCCESS) return;
 
   CV_ls = CV_LS_SPBCG;
@@ -369,7 +361,7 @@ void FCV_SPTFQMR(int *pretype, int *maxl, realtype *delt, int *ier)
   *ier = CVSptfqmr(CV_cvodemem, *pretype, *maxl);
   if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  *ier = CVSpilsSetEpsLin(CV_cvodemem, *delt);
   if (*ier != CVSPILS_SUCCESS) return;
 
   CV_ls = CV_LS_SPTFQMR;
@@ -391,7 +383,7 @@ void FCV_SPGMRREINIT(int *pretype, int *gstype, realtype *delt, int *ier)
   *ier = CVSpilsSetGSType(CV_cvodemem, *gstype);
   if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  *ier = CVSpilsSetEpsLin(CV_cvodemem, *delt);
   if (*ier != CVSPILS_SUCCESS) return;
 
   CV_ls = CV_LS_SPGMR;
@@ -413,7 +405,7 @@ void FCV_SPBCGREINIT(int *pretype, int *maxl, realtype *delt, int *ier)
   *ier = CVSpilsSetMaxl(CV_cvodemem, *maxl);
   if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  *ier = CVSpilsSetEpsLin(CV_cvodemem, *delt);
   if (*ier != CVSPILS_SUCCESS) return;
 
   CV_ls = CV_LS_SPBCG;
@@ -435,7 +427,7 @@ void FCV_SPTFQMRREINIT(int *pretype, int *maxl, realtype *delt, int *ier)
   *ier = CVSpilsSetMaxl(CV_cvodemem, *maxl);
   if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  *ier = CVSpilsSetEpsLin(CV_cvodemem, *delt);
   if (*ier != CVSPILS_SUCCESS) return;
 
   CV_ls = CV_LS_SPTFQMR;
@@ -487,33 +479,30 @@ void FCV_CVODE(realtype *tout, realtype *t, realtype *y, int *itask, int *ier)
   
   switch(CV_ls) {
   case CV_LS_DENSE:
-    CVDenseGetWorkSpace(CV_cvodemem, &CV_iout[12], &CV_iout[13]);  /* LENRWLS,LENIWLS */
-    CVDenseGetLastFlag(CV_cvodemem, (int *) &CV_iout[14]);         /* LSTF */
-    CVDenseGetNumRhsEvals(CV_cvodemem, &CV_iout[15]);              /* NFELS */
-    CVDenseGetNumJacEvals(CV_cvodemem, &CV_iout[16]);              /* NJE */
-    break;
   case CV_LS_BAND:
-    CVBandGetWorkSpace(CV_cvodemem, &CV_iout[12], &CV_iout[13]);   /* LENRWLS,LENIWLS */
-    CVBandGetLastFlag(CV_cvodemem, (int *) &CV_iout[14]);          /* LSTF */
-    CVBandGetNumRhsEvals(CV_cvodemem, &CV_iout[15]);               /* NFELS */
-    CVBandGetNumJacEvals(CV_cvodemem, &CV_iout[16]);               /* NJE */
+  case CV_LS_LAPACKDENSE:
+  case CV_LS_LAPACKBAND:
+    CVDlsGetWorkSpace(CV_cvodemem, &CV_iout[12], &CV_iout[13]);   /* LENRWLS,LENIWLS */
+    CVDlsGetLastFlag(CV_cvodemem, (int *) &CV_iout[14]);          /* LSTF */
+    CVDlsGetNumRhsEvals(CV_cvodemem, &CV_iout[15]);               /* NFELS */
+    CVDlsGetNumJacEvals(CV_cvodemem, &CV_iout[16]);               /* NJE */
     break;
   case CV_LS_DIAG:
-    CVDiagGetWorkSpace(CV_cvodemem, &CV_iout[12], &CV_iout[13]);   /* LENRWLS,LENIWLS */
-    CVDiagGetLastFlag(CV_cvodemem, (int *) &CV_iout[14]);          /* LSTF */
-    CVDiagGetNumRhsEvals(CV_cvodemem, &CV_iout[15]);               /* NFELS */
+    CVDiagGetWorkSpace(CV_cvodemem, &CV_iout[12], &CV_iout[13]);  /* LENRWLS,LENIWLS */
+    CVDiagGetLastFlag(CV_cvodemem, (int *) &CV_iout[14]);         /* LSTF */
+    CVDiagGetNumRhsEvals(CV_cvodemem, &CV_iout[15]);              /* NFELS */
     break;
   case CV_LS_SPGMR:
   case CV_LS_SPBCG:
   case CV_LS_SPTFQMR:
-    CVSpilsGetWorkSpace(CV_cvodemem, &CV_iout[12], &CV_iout[13]);  /* LENRWLS,LENIWLS */
-    CVSpilsGetLastFlag(CV_cvodemem, (int *) &CV_iout[14]);         /* LSTF */
-    CVSpilsGetNumRhsEvals(CV_cvodemem, &CV_iout[15]);              /* NFELS */
-    CVSpilsGetNumJtimesEvals(CV_cvodemem, &CV_iout[16]);           /* NJTV */
-    CVSpilsGetNumPrecEvals(CV_cvodemem, &CV_iout[17]);             /* NPE */
-    CVSpilsGetNumPrecSolves(CV_cvodemem, &CV_iout[18]);            /* NPS */
-    CVSpilsGetNumLinIters(CV_cvodemem, &CV_iout[19]);              /* NLI */
-    CVSpilsGetNumConvFails(CV_cvodemem, &CV_iout[20]);             /* NCFL */
+    CVSpilsGetWorkSpace(CV_cvodemem, &CV_iout[12], &CV_iout[13]); /* LENRWLS,LENIWLS */
+    CVSpilsGetLastFlag(CV_cvodemem, (int *) &CV_iout[14]);        /* LSTF */
+    CVSpilsGetNumRhsEvals(CV_cvodemem, &CV_iout[15]);             /* NFELS */
+    CVSpilsGetNumJtimesEvals(CV_cvodemem, &CV_iout[16]);          /* NJTV */
+    CVSpilsGetNumPrecEvals(CV_cvodemem, &CV_iout[17]);            /* NPE */
+    CVSpilsGetNumPrecSolves(CV_cvodemem, &CV_iout[18]);           /* NPS */
+    CVSpilsGetNumLinIters(CV_cvodemem, &CV_iout[19]);             /* NLI */
+    CVSpilsGetNumConvFails(CV_cvodemem, &CV_iout[20]);            /* NCFL */
   }
 }
 
@@ -576,7 +565,7 @@ void FCV_FREE ()
 
   cv_mem = (CVodeMem) CV_cvodemem;
 
-  free(cv_mem->cv_f_data); cv_mem->cv_f_data = NULL;
+  free(cv_mem->cv_user_data); cv_mem->cv_user_data = NULL;
 
   CVodeFree(&CV_cvodemem);
 
@@ -593,7 +582,7 @@ void FCV_FREE ()
  * Auxiliary data is assumed to be communicated by Common. 
  */
 
-int FCVf(realtype t, N_Vector y, N_Vector ydot, void *f_data)
+int FCVf(realtype t, N_Vector y, N_Vector ydot, void *user_data)
 {
   int ier;
   realtype *ydata, *dydata;
@@ -602,7 +591,7 @@ int FCVf(realtype t, N_Vector y, N_Vector ydot, void *f_data)
   ydata  = N_VGetArrayPointer(y);
   dydata = N_VGetArrayPointer(ydot);
 
-  CV_userdata = (FCVUserData) f_data;
+  CV_userdata = (FCVUserData) user_data;
 
   FCV_FUN(&t, ydata, dydata, CV_userdata->ipar, CV_userdata->rpar, &ier);
 

@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:37 $
+ * $Revision: 1.6 $
+ * $Date: 2008/04/18 17:23:05 $
  * -----------------------------------------------------------------
  * Programmer(s): Allan Taylor, Alan Hindmarsh, Radu Serban, and
  *                Aaron Collier @ LLNL
@@ -33,7 +33,7 @@
  The user-callable functions in this package, with the corresponding KINSOL and
  KINBBDPRE functions, are as follows:
 
-   FKINBBDINIT : interfaces to KINBBDPrecAlloc
+   FKINBBDINIT : interfaces to KINBBDPrecInit
    FKINBBDSPTFQMR: interfaces with KINSptfqmr
    FKINBBDSPBCG : interfaces with KINSpbcg
    FKINBBDSPGMR : interfaces with KINSpgmr
@@ -179,7 +179,13 @@
 
        Note: See printed message for details in case of failure.
 
- (4.3) To allocate memory and initialize data associated with the BBD
+ (4.3) Attach one of the 3 SPILS linear solvers. Make one of the 
+       following calls (see fkinsol.h) for more details.
+          CALL FKINSPGMR (MAXL, MAXLRST, IER)
+          CALL FKINSPBCG (MAXL, IER)
+          CALL FKINSPTFQMR (MAXL, IER)
+
+ (4.4) To allocate memory and initialize data associated with the BBD
        preconditioner, make the following call:
 
          CALL FKINBBDINIT (NLOCAL, MU, ML, IER)
@@ -193,43 +199,6 @@
                     greater efficiency.
          IER      = return completion flag. Values are 0 = success, and
                     -1 = failure.
-
- (4.4A) To specify the SPTFQMR linear system solver, and to allocate memory
-        and initialize data associated with the SPTFQMR method, make the
-        following call:
-
-          CALL FKINBBDSPTFQMR (MAXL, IER)
-
-        The arguments are:
-          MAXL     = maximum Krylov subspace dimension
-                     Note: 0 indicates default.
-          IER      = return completion flag. Values are 0 = success, and
-                     -1 = failure.
-
- (4.4B) To specify the SPBCG linear system solver, and to allocate memory
-        and initialize data associated with the SPBCG method, make the
-        following call:
-
-          CALL FKINBBDSPBCG (MAXL, IER)
-
-        The arguments are:
-          MAXL     = maximum Krylov subspace dimension
-                     Note: 0 indicates default.
-          IER      = return completion flag. Values are 0 = success, and
-                     -1 = failure.
-
- (4.4C) To specify the SPGMR linear system solver, and to allocate memory
-        and initialize data associated with the SPGMR method, make the
-        following call:
-
-          CALL FKINBBDSPGMR (MAXL, MAXLRST, IER)
-
-        The arguments are:
-          MAXL     = maximum Krylov subspace dimension
-                     Note: 0 indicates default.
-          MAXLRST  = maximum number of linear solver restarts
-          IER      = return completion flag. Values are 0 = success, and
-                     -1 = failure.
 
  (5) To solve the system, make the following call:
 
@@ -261,12 +230,11 @@
                 Note: This size is local to the current process.
        NGE    = number of g(u) evaluations (calls to FKLOCFN)
 
- (7) Memory freeing: FKINBBDFREE and FKINFREE
+ (7) Memory freeing: FKINFREE
 
-     To the free the internal memory created by the calls to FKINBBDINIT, FNVINITP
-     and FKINMALLOC, make the following calls, in this order:
+     To the free the internal memory created by the calls to FNVINITP
+     and FKINMALLOC, make the following call:
 
-       CALL FKINBBDFREE
        CALL FKINFREE
 
 *******************************************************************************/
@@ -296,79 +264,16 @@ extern "C" {
 #if defined(F77_FUNC)
 
 #define FKIN_BBDINIT    F77_FUNC(fkinbbdinit, FKINBBDINIT)
-#define FKIN_BBDSPTFQMR F77_FUNC(fkinbbdsptfqmr, FKINBBDSPTFQMR)
-#define FKIN_BBDSPBCG   F77_FUNC(fkinbbdspbcg, FKINBBDSPBCG)
-#define FKIN_BBDSPGMR   F77_FUNC(fkinbbdspgmr, FKINBBDSPGMR)
 #define FKIN_BBDOPT     F77_FUNC(fkinbbdopt, FKINBBDOPT)
-#define FKIN_BBDFREE    F77_FUNC(fkinbbdfree, FKINBBDFREE)
 #define FK_COMMFN       F77_FUNC(fkcommfn, FKCOMMFN)
 #define FK_LOCFN        F77_FUNC(fklocfn, FKLOCFN)
 
-#elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_LOWER)
-
-#define FKIN_BBDINIT    fkinbbdinit
-#define FKIN_BBDSPTFQMR fkinbbdsptfqmr
-#define FKIN_BBDSPBCG   fkinbbdspbcg
-#define FKIN_BBDSPGMR   fkinbbdspgmr
-#define FKIN_BBDOPT     fkinbbdopt
-#define FKIN_BBDFREE    fkinbbdfree
-#define FK_COMMFN       fkcommfn
-#define FK_LOCFN        fklocfn
-
-#elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_UPPER)
-
-#define FKIN_BBDINIT    FKINBBDINIT
-#define FKIN_BBDSPTFQMR FKINBBDSPTFQMR
-#define FKIN_BBDSPBCG   FKINBBDSPBCG
-#define FKIN_BBDSPGMR   FKINBBDSPGMR
-#define FKIN_BBDOPT     FKINBBDOPT
-#define FKIN_BBDFREE    FKINBBDFREE
-#define FK_COMMFN       FKCOMMFN
-#define FK_LOCFN        FKLOCFN
-
-#elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_LOWER)
+#else
 
 #define FKIN_BBDINIT    fkinbbdinit_
-#define FKIN_BBDSPTFQMR fkinbbdsptfqmr_
-#define FKIN_BBDSPBCG   fkinbbdspbcg_
-#define FKIN_BBDSPGMR   fkinbbdspgmr_
 #define FKIN_BBDOPT     fkinbbdopt_
-#define FKIN_BBDFREE    fkinbbdfree_
 #define FK_COMMFN       fkcommfn_
 #define FK_LOCFN        fklocfn_
-
-#elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_UPPER)
-
-#define FKIN_BBDINIT    FKINBBDINIT_
-#define FKIN_BBDSPTFQMR FKINBBDSPTFQMR_
-#define FKIN_BBDSPBCG   FKINBBDSPBCG_
-#define FKIN_BBDSPGMR   FKINBBDSPGMR_
-#define FKIN_BBDOPT     FKINBBDOPT_
-#define FKIN_BBDFREE    FKINBBDFREE_
-#define FK_COMMFN       FKCOMMFN_
-#define FK_LOCFN        FKLOCFN_
-
-#elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_LOWER)
-
-#define FKIN_BBDINIT    fkinbbdinit__
-#define FKIN_BBDSPTFQMR fkinbbdsptfqmr__
-#define FKIN_BBDSPBCG   fkinbbdspbcg__
-#define FKIN_BBDSPGMR   fkinbbdspgmr__
-#define FKIN_BBDOPT     fkinbbdopt__
-#define FKIN_BBDFREE    fkinbbdfree__
-#define FK_COMMFN       fkcommfn__
-#define FK_LOCFN        fklocfn__
-
-#elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_UPPER)
-
-#define FKIN_BBDINIT    FKINBBDINIT__
-#define FKIN_BBDSPTFQMR FKINBBDSPTFQMR__
-#define FKIN_BBDSPBCG   FKINBBDSPBCG__
-#define FKIN_BBDSPGMR   FKINBBDSPGMR__
-#define FKIN_BBDOPT     FKINBBDOPT__
-#define FKIN_BBDFREE    FKINBBDFREE__
-#define FK_COMMFN       FKCOMMFN__
-#define FK_LOCFN        FKLOCFN__
 
 #endif
 
@@ -378,13 +283,9 @@ extern "C" {
  * -----------------------------------------------------------------
  */
 
-void FKIN_BBDINIT(long int *nlocal, long int *mudq, long int *mldq,
-		  long int *mu, long int *ml, int *ier);
-void FKIN_BBDSPTFQMR(int *maxl, int *ier);
-void FKIN_BBDSPBCG(int *maxl, int *ier);
-void FKIN_BBDSPGMR(int *maxl, int *maxlrst, int *ier);
+void FKIN_BBDINIT(int *nlocal, int *mudq, int *mldq,
+		  int *mu, int *ml, int *ier);
 void FKIN_BBDOPT(long int *lenrpw, long int *lenipw, long int *nge);
-void FKIN_BBDFREE(void);
 
 /*
  * -----------------------------------------------------------------
@@ -392,16 +293,8 @@ void FKIN_BBDFREE(void);
  * -----------------------------------------------------------------
  */
 
-int FKINgloc(long int Nloc, N_Vector uu, N_Vector gval, void *f_data);
-int FKINgcomm(long int Nloc, N_Vector uu, void *f_data);
-
-/*
- * -----------------------------------------------------------------
- * declaration for global variable shared amongst various routines
- * -----------------------------------------------------------------
- */
-
-void *KBBD_Data;
+int FKINgloc(int Nloc, N_Vector uu, N_Vector gval, void *user_data);
+int FKINgcomm(int Nloc, N_Vector uu, void *user_data);
 
 #ifdef __cplusplus
 }

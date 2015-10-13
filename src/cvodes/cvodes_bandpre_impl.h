@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:34 $
+ * $Revision: 1.9 $
+ * $Date: 2007/11/26 16:19:59 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -23,49 +23,52 @@ extern "C" {
 
 #include <cvodes/cvodes_bandpre.h>
 #include <sundials/sundials_band.h>
+#include <sundials/sundials_direct.h>
 
-  /*
-   * -----------------------------------------------------------------
-   * Type: CVBandPrecData
-   * -----------------------------------------------------------------
-   */
+/*
+ * -----------------------------------------------------------------
+ * Type: CVBandPrecData
+ * -----------------------------------------------------------------
+ */
 
-  typedef struct {
+typedef struct CVBandPrecDataRec {
 
-    /* Data set by user in CVBandPrecAlloc */
+  /* Data set by user in CVBandPrecInit */
 
-    long int N;
-    long int ml, mu;
+  int N;
+  int ml, mu;
 
-    /* Data set by CVBandPrecSetup */
+  /* Data set by CVBandPrecSetup */
 
-    BandMat savedJ;
-    BandMat savedP;
-    long int *pivots;
+  DlsMat savedJ;
+  DlsMat savedP;
+  int *pivots;
 
-    /* Rhs calls */
+  /* Rhs calls */
 
-    long int nfeBP;
+  long int nfeBP;
 
-    /* Pointer to cvode_mem */
+  /* Pointer to cvode_mem */
 
-    void *cvode_mem;
+  void *cvode_mem;
 
-  } *CVBandPrecData;
+} *CVBandPrecData;
 
-  /*
-   * -----------------------------------------------------------------
-   * CVBANDPRE error messages
-   * -----------------------------------------------------------------
-   */
+/*
+ * -----------------------------------------------------------------
+ * CVBANDPRE error messages
+ * -----------------------------------------------------------------
+ */
 
-#define MSGBP_CVMEM_NULL "Integrator memory is NULL."
-#define MSGBP_MEM_FAIL "A memory request failed."
-#define MSGBP_BAD_NVECTOR "A required vector operation is not implemented."
-#define MSGBP_PDATA_NULL "CVBANDPRE memory is NULL."
+#define MSGBP_MEM_NULL       "Integrator memory is NULL."
+#define MSGBP_LMEM_NULL      "Linear solver memory is NULL. One of the SPILS linear solvers must be attached."
+#define MSGBP_MEM_FAIL       "A memory request failed."
+#define MSGBP_BAD_NVECTOR    "A required vector operation is not implemented."
+#define MSGBP_PMEM_NULL      "Band preconditioner memory is NULL. CVBandPrecInit must be called."
 #define MSGBP_RHSFUNC_FAILED "The right-hand side routine failed in an unrecoverable manner."
 
-#define MSGBP_CAMEM_NULL "cvadj_mem = NULL illegal."
+#define MSGBP_NO_ADJ         "Illegal attempt to call before calling CVodeAdjInit."
+#define MSGBP_BAD_WHICH      "Illegal value for parameter which."
 
 #ifdef __cplusplus
 }

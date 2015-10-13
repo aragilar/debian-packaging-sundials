@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:33 $
+ * $Revision: 1.5 $
+ * $Date: 2007/04/30 19:28:59 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Alan C. Hindmarsh and Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -30,13 +30,13 @@
 #ifdef __cplusplus  /* wrapper to enable C++ usage */
 extern "C" {
 #endif
-  extern void FCV_DJAC(long int*,                                  /* N          */
-                       realtype*, realtype*, realtype*,            /* T, Y, FY   */
-                       realtype*,                                  /* DJAC       */
-                       realtype*,                                  /* H          */ 
-                       long int*, realtype*,                       /* IPAR, RPAR */
-                       realtype*, realtype*, realtype*,            /* V1, V2, V3 */
-                       int *ier);                                  /* IER        */
+  extern void FCV_DJAC(int*,                             /* N          */
+                       realtype*, realtype*, realtype*,  /* T, Y, FY   */
+                       realtype*,                        /* DJAC       */
+                       realtype*,                        /* H          */ 
+                       long int*, realtype*,             /* IPAR, RPAR */
+                       realtype*, realtype*, realtype*,  /* V1, V2, V3 */
+                       int *ier);                        /* IER        */
 #ifdef __cplusplus
 }
 #endif
@@ -48,10 +48,10 @@ void FCV_DENSESETJAC(int *flag, int *ier)
   CVodeMem cv_mem;
 
   if (*flag == 0) {
-    *ier = CVDenseSetJacFn(CV_cvodemem, NULL, NULL);
+    *ier = CVDlsSetDenseJacFn(CV_cvodemem, NULL);
   } else {
     cv_mem = (CVodeMem) CV_cvodemem;
-    *ier = CVDenseSetJacFn(CV_cvodemem, FCVDenseJac, cv_mem->cv_f_data);
+    *ier = CVDlsSetDenseJacFn(CV_cvodemem, FCVDenseJac);
   }
 }
 
@@ -63,8 +63,9 @@ void FCV_DENSESETJAC(int *flag, int *ier)
    DENSE_COL from DENSE and the routine N_VGetArrayPointer from NVECTOR.
    Auxiliary data is assumed to be communicated by Common. */
 
-int FCVDenseJac(long int N, DenseMat J, realtype t, 
-                N_Vector y, N_Vector fy, void *jac_data,
+int FCVDenseJac(int N, realtype t, 
+                N_Vector y, N_Vector fy, 
+                DlsMat J, void *user_data,
                 N_Vector vtemp1, N_Vector vtemp2, N_Vector vtemp3)
 {
   int ier;
@@ -82,7 +83,7 @@ int FCVDenseJac(long int N, DenseMat J, realtype t,
 
   jacdata = DENSE_COL(J,0);
 
-  CV_userdata = (FCVUserData) jac_data;
+  CV_userdata = (FCVUserData) user_data;
 
   FCV_DJAC(&N, &t, ydata, fydata, jacdata, &h, 
            CV_userdata->ipar, CV_userdata->rpar, v1data, v2data, v3data, &ier); 

@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:35 $
+ * $Revision: 1.5 $
+ * $Date: 2007/04/30 19:29:00 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Aaron Collier @ LLNL
  * -----------------------------------------------------------------
@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-  extern void FIDA_DJAC(long int*, 
+  extern void FIDA_DJAC(int*, 
                         realtype*, realtype*, realtype*, realtype*,
                         realtype*, 
                         realtype*, realtype*, realtype*,
@@ -49,7 +49,7 @@ void FIDA_DENSESETJAC(int *flag, int *ier)
 
   if (*flag == 0) {
 
-    *ier = IDADenseSetJacFn(IDA_idamem, NULL, NULL);
+    *ier = IDADlsSetDenseJacFn(IDA_idamem, NULL);
 
   } else {
 
@@ -61,7 +61,7 @@ void FIDA_DENSESETJAC(int *flag, int *ier)
       }
     }
 
-    *ier = IDADenseSetJacFn(IDA_idamem, (IDADenseJacFn) FIDADenseJac, ((IDAMem) IDA_idamem)->ida_rdata);
+    *ier = IDADlsSetDenseJacFn(IDA_idamem, FIDADenseJac);
   }
 
   return;
@@ -69,9 +69,9 @@ void FIDA_DENSESETJAC(int *flag, int *ier)
 
 /*************************************************/
 
-int FIDADenseJac(long int N, realtype t,
+int FIDADenseJac(int N, realtype t, realtype c_j, 
 		 N_Vector yy, N_Vector yp, N_Vector rr,
-		 realtype c_j, void *jac_data, DenseMat Jac,
+                 DlsMat Jac, void *user_data,
 		 N_Vector vtemp1, N_Vector vtemp2, N_Vector vtemp3)
 {
   realtype *yy_data, *yp_data, *rr_data, *jacdata, *ewtdata, *v1data, *v2data, *v3data;
@@ -103,7 +103,7 @@ int FIDADenseJac(long int N, realtype t,
 
   jacdata = DENSE_COL(Jac,0);
 
-  IDA_userdata = (FIDAUserData) jac_data;
+  IDA_userdata = (FIDAUserData) user_data;
 
   /* Call user-supplied routine*/
   FIDA_DJAC(&N, &t, yy_data, yp_data, rr_data, jacdata,

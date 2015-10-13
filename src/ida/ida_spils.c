@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:32:35 $
+ * $Revision: 1.4 $
+ * $Date: 2007/04/30 19:29:00 $
  * ----------------------------------------------------------------- 
  * Programmers: Alan C. Hindmarsh and Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -39,7 +39,7 @@
 #define tn        (IDA_mem->ida_tn)
 #define cj        (IDA_mem->ida_cj)
 #define res       (IDA_mem->ida_res)
-#define rdata     (IDA_mem->ida_rdata)
+#define user_data (IDA_mem->ida_user_data)
 #define ewt       (IDA_mem->ida_ewt)
 #define lmem      (IDA_mem->ida_lmem)
 
@@ -58,6 +58,10 @@
 #define ncfl      (idaspils_mem->s_ncfl)
 #define njtimes   (idaspils_mem->s_njtimes)
 #define nres      (idaspils_mem->s_nres)
+
+#define jtimesDQ  (idaspils_mem->s_jtimesDQ)
+#define jtimes    (idaspils_mem->s_jtimes)
+#define jdata     (idaspils_mem->s_jdata)
 
 #define last_flag (idaspils_mem->s_last_flag)
 
@@ -224,8 +228,8 @@ int IDASpilsSetIncrementFactor(void *ida_mem, realtype dqincfac)
   return(IDASPILS_SUCCESS);
 }
 
-int IDASpilsSetPreconditioner(void *ida_mem, IDASpilsPrecSetupFn pset,
-                              IDASpilsPrecSolveFn psolve, void *prec_data)
+int IDASpilsSetPreconditioner(void *ida_mem,
+                              IDASpilsPrecSetupFn pset, IDASpilsPrecSolveFn psolve)
 {
   IDAMem IDA_mem;
   IDASpilsMem idaspils_mem;
@@ -245,13 +249,11 @@ int IDASpilsSetPreconditioner(void *ida_mem, IDASpilsPrecSetupFn pset,
 
   idaspils_mem->s_pset = pset;
   idaspils_mem->s_psolve = psolve;
-  if (psolve != NULL) idaspils_mem->s_pdata = prec_data;
 
   return(IDASPILS_SUCCESS);
 }
 
-int IDASpilsSetJacTimesVecFn(void *ida_mem, IDASpilsJacTimesVecFn jtimes,
-			     void *jac_data)
+int IDASpilsSetJacTimesVecFn(void *ida_mem, IDASpilsJacTimesVecFn jtv)
 {
   IDAMem IDA_mem;
   IDASpilsMem idaspils_mem;
@@ -269,8 +271,12 @@ int IDASpilsSetJacTimesVecFn(void *ida_mem, IDASpilsJacTimesVecFn jtimes,
   }
   idaspils_mem = (IDASpilsMem) lmem;
 
-  idaspils_mem->s_jtimes = jtimes;
-  if (jtimes != NULL) idaspils_mem->s_jdata = jac_data;
+  if (jtv != NULL) {
+    jtimesDQ = FALSE;
+    jtimes = jtv;
+  } else {
+    jtimesDQ = TRUE;
+  }
 
   return(IDASPILS_SUCCESS);
 }
@@ -496,6 +502,9 @@ char *IDASpilsGetReturnFlagName(int flag)
   case IDASPILS_MEM_FAIL:
     sprintf(name,"IDASPILS_MEM_FAIL");
     break;
+  case IDASPILS_PMEM_NULL:
+    sprintf(name,"IDASPILS_PMEM_NULL");
+    break;
   default:
     sprintf(name,"NONE");
   }
@@ -511,8 +520,6 @@ char *IDASpilsGetReturnFlagName(int flag)
 
 #define psolve   (idaspils_mem->s_psolve)
 #define pdata    (idaspils_mem->s_pdata)
-#define jtimes   (idaspils_mem->s_jtimes)
-#define jdata    (idaspils_mem->s_jdata)
 #define dqincfac (idaspils_mem->s_dqincfac)
 
 /*
@@ -575,7 +582,7 @@ int IDASpilsPSolve(void *ida_mem, N_Vector r, N_Vector z, int lr)
 int IDASpilsDQJtimes(realtype tt,
                      N_Vector yy, N_Vector yp, N_Vector rr,
                      N_Vector v, N_Vector Jv, 
-                     realtype c_j, void *jac_data, 
+                     realtype c_j, void *data, 
                      N_Vector work1, N_Vector work2)
 {
   IDAMem IDA_mem;
@@ -584,8 +591,8 @@ int IDASpilsDQJtimes(realtype tt,
   realtype sig, siginv;
   int iter, retval;
 
-  /* jac_data is ida_mem */
-  IDA_mem = (IDAMem) jac_data;
+  /* data is ida_mem */
+  IDA_mem = (IDAMem) data;
   idaspils_mem = (IDASpilsMem) lmem;
 
   switch(ils_type) {
@@ -611,7 +618,7 @@ int IDASpilsDQJtimes(realtype tt,
     N_VLinearSum(c_j*sig, v, ONE, yp, yp_tmp);
     
     /* Call res for Jv = F(t, y_tmp, yp_tmp), and return if it failed. */
-    retval = res(tt, y_tmp, yp_tmp, Jv, rdata); 
+    retval = res(tt, y_tmp, yp_tmp, Jv, user_data); 
     nres++;
     if (retval == 0) break;
     if (retval < 0)  return(-1);

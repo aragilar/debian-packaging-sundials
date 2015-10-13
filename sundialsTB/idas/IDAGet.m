@@ -1,4 +1,4 @@
-function varargout = IDAGet(key, varargin)
+function [output, status] = IDAGet(key, varargin)
 %IDAGet extracts data from the IDAS solver memory.
 %
 %   Usage: RET = IDAGet ( KEY [, P1 [, P2] ... ]) 
@@ -8,37 +8,29 @@ function varargout = IDAGet(key, varargin)
 %   returned.
 %
 %   KEY is a string and should be one of:
+%    o DerivSolution - Returns a vector containing the K-th order derivative
+%       of the solution at time T. The time T and order K must be passed through 
+%       the input arguments P1 and P2, respectively:
+%       DKY = IDAGet('DerivSolution', T, K)
 %    o ErrorWeights - Returns a vector containing the current error weights.
 %       EWT = IDAGet('ErrorWeights')
 %    o CheckPointsInfo - Returns an array of structures with check point information.
 %       CK = IDAGet('CheckPointInfo)
-%    o CurrentCheckPoint - Returns the address of the active check point
-%       ADDR = IDAGet('CurrentCheckPoint');
-%    o DataPointInfo - Returns information stored for interpolation at the I-th data
-%       point in between the current check points. The index I must be passed through
-%       the agument P1.
-%       If the interpolation type was Hermite (see IDASetOptions), it returns two
-%       vectors, Y and YD:
-%       [Y, YD] = IDAGet('DataPointInfo', I)
 
 % Radu Serban <radu@llnl.gov>
 % Copyright (c) 2005, The Regents of the University of California.
-% $Revision: 1.1 $Date: 2006/07/17 16:49:50 $
+% $Revision: 1.4 $Date: 2007/12/05 21:58:18 $
 
-mode = 22;
+mode = 32;
 
-if strcmp(key, 'ErrorWeights')
-  ewt = idm(mode,2);
-  varargout(1) = {ewt};
+if strcmp(key, 'DerivSolution')
+  t = varargin{1};
+  k = varargin{2};
+  [output, status] = idm(mode,1,t,k);
+elseif strcmp(key, 'ErrorWeights')
+  [output, status] = idm(mode,2);
 elseif strcmp(key, 'CheckPointsInfo')
-  ck = idm(mode,4);
-  varargout(1) = {ck};
-elseif strcmp(key, 'CurrentCheckPoint')
-  addr = idm(mode, 5);
-  varargout(1) = {addr};
-elseif strcmp(key, 'DataPointInfo')
-  i = varargin{1};
-  varargout = idm(mode,6,i);
+  [output, status] = idm(mode,4);
 else
   error('IDAGet:: Unrecognized key');
 end

@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1 $
- * $Date: 2006/07/05 15:27:52 $
+ * $Revision: 1.6 $
+ * $Date: 2007/11/26 16:19:59 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Scott Cohen, Alan Hindmarsh, Radu Serban, and
  *                Aaron Collier @ LLNL
@@ -33,19 +33,19 @@ extern "C" {
  * -----------------------------------------------------------------
  */
 
-#define KINSPILS_SUCCESS 0
+#define KINSPILS_SUCCESS    0
 
 #define KINSPILS_MEM_NULL  -1
 #define KINSPILS_LMEM_NULL -2
 #define KINSPILS_ILL_INPUT -3
 #define KINSPILS_MEM_FAIL  -4
+#define KINSPILS_PMEM_NULL -5
 
 /*
  * -----------------------------------------------------------------
  * KINSPILS solver constant
  * -----------------------------------------------------------------
- * KINSPILS_MAXL : maximum dimension of Krylov subspace allowed by
- *                 default
+ * KINSPILS_MAXL : default maximum dimension of Krylov subspace
  * -----------------------------------------------------------------
  */
 
@@ -87,9 +87,7 @@ extern "C" {
  *  fscale  vector (type N_Vector) containing diagonal elements
  *          of scaling matrix for fval [input]
  *
- *  P_data  pointer to user-allocated system memory block used
- *          for storage of preconditioner matrix-related data
- *          [output]
+ *  user_data  pointer to user-allocated data memory block
  *
  *  vtemp1/vtemp2  available scratch vectors (temporary storage)
  *
@@ -100,7 +98,7 @@ extern "C" {
 
 typedef int (*KINSpilsPrecSetupFn)(N_Vector uu, N_Vector uscale,
                                    N_Vector fval, N_Vector fscale,
-                                   void *P_data, N_Vector vtemp1,
+                                   void *user_data, N_Vector vtemp1,
 				   N_Vector vtemp2);
 
 /*
@@ -129,9 +127,7 @@ typedef int (*KINSpilsPrecSetupFn)(N_Vector uu, N_Vector uscale,
  *      which upon return contains a solution of the linear system
  *      P*z = r [input/output]
  *
- *  P_data  pointer to user-allocated system memory block used
- *          for storage of preconditioner matrix-related data
- *          [output]
+ *  user_data  pointer to user-allocated data memory block
  *
  *  vtemp  available scratch vector (volatile storage)
  *
@@ -147,7 +143,7 @@ typedef int (*KINSpilsPrecSetupFn)(N_Vector uu, N_Vector uscale,
 
 typedef int (*KINSpilsPrecSolveFn)(N_Vector uu, N_Vector uscale, 
                                    N_Vector fval, N_Vector fscale, 
-                                   N_Vector vv, void *P_data,
+                                   N_Vector vv, void *user_data,
                                    N_Vector vtemp);
 
 /*
@@ -172,8 +168,8 @@ typedef int (*KINSpilsPrecSolveFn)(N_Vector uu, N_Vector uscale,
  *          to be updated/reevaluated, if appropriate, unless
  *          new_uu = FALSE [input/output]
  *
- *  J_data  pointer to user-allocated memory block where J(uu) data
- *          is to be stored [input]
+ *  user_data  pointer to user data, the same as the user_data
+ *          parameter passed to the KINSetUserData function.
  *
  * If successful, the function should return 0 (zero). If an error
  * occurs, then the routine should return a non-zero integer value.
@@ -213,32 +209,21 @@ typedef int (*KINSpilsJacTimesVecFn)(N_Vector v, N_Vector Jv,
  *                           |       used to apply preconditioner to
  *                           |       linear system (psolve)
  *                           |       [NULL]
- *                           |   (c) pointer to user-allocated system
- *                           |       memory that is passed to the pset
- *                           |       and psolve routines
- *                           |       [NULL]
  *                           |
- * KINSpilsSetJacTimesVecFn  | used to set the following:
- *                           |   (a) name of user-supplied subroutine
- *                           |       used to compute the matrix-vector
- *                           |       product J(u)*v, where J denotes
- *                           |       the system Jacobian (jtimes)
- *                           |       [KINSpilsDQJtimes] (see kinsol_spils.c)
- *                           |   (b) pointer to a user-allocated memory
- *                           |       block that is passed to the jtimes
- *                           |       routine
- *                           |       [NULL]
+ * KINSpilsSetJacTimesVecFn  | used to set the following the name
+ *                           | of user-supplied subroutine used to 
+ *                           | compute the matrix-vector product J(u)*v,
+ *                           | where J denotes the system Jacobian.
+ *                           | [KINSpilsDQJtimes]
  * -----------------------------------------------------------------
  */
 
-int KINSpilsSetMaxRestarts(void *kinmem, int maxrs);
-int KINSpilsSetPreconditioner(void *kinmem,
-			      KINSpilsPrecSetupFn pset,
-			      KINSpilsPrecSolveFn psolve,
-			      void *P_data);
-int KINSpilsSetJacTimesVecFn(void *kinmem,
-			     KINSpilsJacTimesVecFn jtimes,
-			     void *J_data);
+SUNDIALS_EXPORT int KINSpilsSetMaxRestarts(void *kinmem, int maxrs);
+SUNDIALS_EXPORT int KINSpilsSetPreconditioner(void *kinmem,
+					      KINSpilsPrecSetupFn pset,
+					      KINSpilsPrecSolveFn psolve);
+SUNDIALS_EXPORT int KINSpilsSetJacTimesVecFn(void *kinmem,
+                                             KINSpilsJacTimesVecFn jtv);
 
 /*
  * -----------------------------------------------------------------
@@ -316,36 +301,15 @@ int KINSpilsSetJacTimesVecFn(void *kinmem,
  * -----------------------------------------------------------------
  */
 
-int KINSpilsGetWorkSpace(void *kinmem, long int *lenrwSG, long int *leniwSG);
-int KINSpilsGetNumPrecEvals(void *kinmem, long int *npevals);
-int KINSpilsGetNumPrecSolves(void *kinmem, long int *npsolves);
-int KINSpilsGetNumLinIters(void *kinmem, long int *nliters);
-int KINSpilsGetNumConvFails(void *kinmem, long int *nlcfails);
-int KINSpilsGetNumJtimesEvals(void *kinmem, long int *njvevals);
-int KINSpilsGetNumFuncEvals(void *kinmem, long int *nfevalsS); 
-int KINSpilsGetLastFlag(void *kinmem, int *flag);
-char *KINSpilsGetReturnFlagName(int flag);
-
-/*
- * -----------------------------------------------------------------
- * KINSpilsGet* Return Values
- * -----------------------------------------------------------------
- * The possible return values for the KINSpilsGet* subroutines
- * are the following:
- *
- * KINSPILS_SUCCESS : means the routine exited normally [0]
- *
- * KINSPILS_ILL_INPUT : means at least one input parameter was
- *                      invalid (check error message(s)) [-3]
- *
- * KINSPILS_MEM_NULL : means a NULL KINSOL memory block pointer was
- *                     given [-1]
- *
- * KINSPILS_LMEM_NULL : means a NULL linear solver memory block pointer
- *                      was given [-2]
- * -----------------------------------------------------------------
- */
-
+SUNDIALS_EXPORT int KINSpilsGetWorkSpace(void *kinmem, long int *lenrwSG, long int *leniwSG);
+SUNDIALS_EXPORT int KINSpilsGetNumPrecEvals(void *kinmem, long int *npevals);
+SUNDIALS_EXPORT int KINSpilsGetNumPrecSolves(void *kinmem, long int *npsolves);
+SUNDIALS_EXPORT int KINSpilsGetNumLinIters(void *kinmem, long int *nliters);
+SUNDIALS_EXPORT int KINSpilsGetNumConvFails(void *kinmem, long int *nlcfails);
+SUNDIALS_EXPORT int KINSpilsGetNumJtimesEvals(void *kinmem, long int *njvevals);
+SUNDIALS_EXPORT int KINSpilsGetNumFuncEvals(void *kinmem, long int *nfevalsS); 
+SUNDIALS_EXPORT int KINSpilsGetLastFlag(void *kinmem, int *flag);
+SUNDIALS_EXPORT char *KINSpilsGetReturnFlagName(int flag);
 
 
 #ifdef __cplusplus
