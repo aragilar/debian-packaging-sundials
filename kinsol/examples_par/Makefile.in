@@ -1,0 +1,65 @@
+# -----------------------------------------------------------------
+# $Revision: 1.6.2.2 $
+# $Date: 2005/03/18 23:26:56 $
+# -----------------------------------------------------------------
+# Programmer(s): Radu Serban and Aaron Collier @ LLNL
+# -----------------------------------------------------------------
+# Copyright (c) 2002, The Regents of the University of California.
+# Produced at the Lawrence Livermore National Laboratory.
+# All rights reserved.
+# For details, see sundials/kinsol/LICENSE.
+# -----------------------------------------------------------------
+# Makefile for KINSOL parallel examples
+#
+# @configure_input@
+# -----------------------------------------------------------------
+
+SHELL = @SHELL@
+
+srcdir       = @srcdir@
+builddir     = @builddir@
+top_builddir = @top_builddir@
+prefix       = @prefix@
+exec_prefix  = @exec_prefix@
+includedir   = @includedir@
+libdir       = @libdir@
+
+@LIBTOOL_CMD@
+
+CPP         = @CPP@
+CPPFLAGS    = @CPPFLAGS@
+CC          = @CC@
+CFLAGS      = @CFLAGS@
+LDFLAGS     = @LDFLAGS@
+LIBS        = @LIBS@
+MPICC       = @MPICC@
+MPI_INC_DIR = @MPI_INC_DIR@
+MPI_LIB_DIR = @MPI_LIB_DIR@
+MPI_LIBS    = @MPI_LIBS@
+MPI_FLAGS   = @MPI_FLAGS@
+
+COMPILER_PREFIX = @COMPILER_PREFIX@
+LINKER_PREFIX   = @LINKER_PREFIX@
+
+SUNDIALS_INC_DIR = $(includedir)
+SUNDIALS_LIB_DIR = $(libdir)
+SUNDIALS_LIBS    = -lsundials_kinsol -lsundials_nvecparallel -lsundials_shared
+
+EXEC_FILES = kinwebp kinwebbbd
+
+all: $(EXEC_FILES)
+
+kinwebp: $(srcdir)/kinwebp.c
+	$(COMPILER_PREFIX) $(MPICC) $(CPPFLAGS) $(MPI_FLAGS) -I$(SUNDIALS_INC_DIR) -I$(MPI_INC_DIR) $(CFLAGS) -c $(srcdir)/kinwebp.c
+	$(LINKER_PREFIX) $(MPICC) -o $(builddir)/kinwebp $(builddir)/kinwebp.o $(MPI_FLAGS) $(LDFLAGS) -L$(SUNDIALS_LIB_DIR) $(SUNDIALS_LIBS) -L$(MPI_LIB_DIR) $(MPI_LIBS) $(LIBS) 
+kinwebbbd: $(srcdir)/kinwebbbd.c
+	$(COMPILER_PREFIX) $(MPICC) $(CPPFLAGS) $(MPI_FLAGS) -I$(SUNDIALS_INC_DIR) -I$(MPI_INC_DIR) $(CFLAGS) -c $(srcdir)/kinwebbbd.c
+	$(LINKER_PREFIX) $(MPICC) -o $(builddir)/kinwebbbd $(builddir)/kinwebbbd.o $(MPI_FLAGS) $(LDFLAGS) -L$(SUNDIALS_LIB_DIR) $(SUNDIALS_LIBS) -L$(MPI_LIB_DIR) $(MPI_LIBS) $(LIBS) 
+
+clean:
+	rm -rf .libs
+	rm -f *.lo
+	rm -f *.o
+
+uninstall: clean
+	rm -f $(EXEC_FILES)

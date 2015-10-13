@@ -1,0 +1,78 @@
+# -----------------------------------------------------------------
+# $Revision: 1.9.2.3 $
+# $Date: 2005/03/18 23:24:52 $
+# -----------------------------------------------------------------
+# Programmer(s): Radu Serban and Aaron Collier @ LLNL
+# -----------------------------------------------------------------
+# Copyright (c) 2002, The Regents of the University of California.
+# Produced at the Lawrence Livermore National Laboratory.
+# All rights reserved.
+# For details, see sundials/cvode/LICENSE.
+# -----------------------------------------------------------------
+# Makefile for FCVODE parallel examples
+#
+# @configure_input@
+# -----------------------------------------------------------------
+
+SHELL = @SHELL@
+
+srcdir       = @srcdir@
+top_builddir = @top_builddir@
+builddir     = @builddir@
+prefix       = @prefix@
+exec_prefix  = @exec_prefix@
+includedir   = @includedir@
+libdir       = @libdir@
+
+INSTALL = @INSTALL@
+
+@LIBTOOL_CMD@
+
+FFLAGS      = @FFLAGS@
+LDFLAGS     = @LDFLAGS@
+LIBS        = @LIBS@
+FLIBS       = @FLIBS@
+MPIF77      = @MPIF77@
+MPICC       = @MPICC@
+MPI_INC_DIR = @MPI_INC_DIR@
+MPI_LIB_DIR = @MPI_LIB_DIR@
+MPI_LIBS    = @MPI_LIBS@
+MPI_FLAGS   = @MPI_FLAGS@
+
+COMPILER_PREFIX = @COMPILER_PREFIX@
+LINKER_PREFIX   = @LINKER_PREFIX@
+
+SUNDIALS_LIB_DIR = $(libdir)
+SUNDIALS_LIBS    = -lsundials_fcvode -lsundials_cvode -lsundials_fnvecparallel -lsundials_nvecparallel -lsundials_shared
+
+EXEC_FILES = pvdiagnf pvdiagkf pvdiagkbf
+
+all: $(EXEC_FILES)
+
+fortran_update.sh:
+	@${INSTALL} ${top_builddir}/config/fortran_update.sh ${builddir}
+
+pvdiagnf: $(srcdir)/pvdiagnf.f fortran_update.sh
+	@${SHELL} ${builddir}/fortran_update.sh ${srcdir} pvdiagnf.f
+	$(COMPILER_PREFIX) $(MPIF77) $(MPI_FLAGS) -I$(MPI_INC_DIR) $(FFLAGS) -c $(builddir)/pvdiagnf-updated.f
+	$(LINKER_PREFIX) $(MPICC) -o $(builddir)/pvdiagnf $(builddir)/pvdiagnf-updated.o $(MPI_FLAGS) $(LDFLAGS) -L$(SUNDIALS_LIB_DIR) $(SUNDIALS_LIBS) -L$(MPI_LIB_DIR) $(MPI_LIBS) $(LIBS) $(FLIBS) 
+
+pvdiagkf: $(srcdir)/pvdiagkf.f fortran_update.sh
+	@${SHELL} ${builddir}/fortran_update.sh ${srcdir} pvdiagkf.f
+	$(COMPILER_PREFIX) $(MPIF77) $(MPI_FLAGS) -I$(MPI_INC_DIR) $(FFLAGS) -c $(builddir)/pvdiagkf-updated.f
+	$(LINKER_PREFIX) $(MPICC) -o $(builddir)/pvdiagkf $(builddir)/pvdiagkf-updated.o $(MPI_FLAGS) $(LDFLAGS) -L$(SUNDIALS_LIB_DIR) $(SUNDIALS_LIBS) -L$(MPI_LIB_DIR) $(MPI_LIBS) $(LIBS) $(FLIBS) 
+
+pvdiagkbf: $(srcdir)/pvdiagkbf.f fortran_update.sh
+	@${SHELL} ${builddir}/fortran_update.sh ${srcdir} pvdiagkbf.f
+	$(COMPILER_PREFIX) $(MPIF77) $(MPI_FLAGS) -I$(MPI_INC_DIR) $(FFLAGS) -c $(builddir)/pvdiagkbf-updated.f
+	$(LINKER_PREFIX) $(MPICC) -o $(builddir)/pvdiagkbf $(builddir)/pvdiagkbf-updated.o $(MPI_FLAGS) $(LDFLAGS) -L$(SUNDIALS_LIB_DIR) $(SUNDIALS_LIBS) -L$(MPI_LIB_DIR) $(MPI_LIBS) $(LIBS) $(FLIBS) 
+
+clean:
+	rm -rf .libs
+	rm -f *.lo
+	rm -f *.o
+	rm -f *-updated.f
+	rm -f fortran_update.sh
+
+uninstall: clean
+	rm -f $(EXEC_FILES)

@@ -1,0 +1,18 @@
+List of parallel CVODE FCMIX examples
+
+  pvdiagnf  : diagonal ODE example - non-stiff case (ADAMS/FUNCTIONAL)
+  pvdiagkf  : diagonal ODE example - stiff case (BDF/SPGMR)
+  pvdiagkbf : diagonal ODE example - stiff case (BDF/SPGMR with 
+              FCVBBD preconditioner)
+
+Sample results:
+
+  SUNDIALS was built with the following options:
+
+  ./configure CC=gcc F77=g77
+
+  System Architecture: IA-32
+  Processor Type: Intel Pentium 4 Xeon DP (i686)
+  Operating System: Red Hat Enterprise Linux WS 3
+  C/Fortran Compilers: gcc/g77 v3.2.3-39 (Red Hat)
+  MPI Implementation: LAM-MPI v6.5.9
