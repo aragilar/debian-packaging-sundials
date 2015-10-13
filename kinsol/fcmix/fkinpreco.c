@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.14.2.2 $
- * $Date: 2005/04/07 00:18:39 $
+ * $Revision: 1.22 $
+ * $Date: 2006/02/02 00:36:20 $
  * -----------------------------------------------------------------
  * Programmer(s): Allan Taylor, Alan Hindmarsh and
  *                Radu Serban @ LLNL
@@ -27,11 +27,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "fkinsol.h"        /* prototypes of interfaces and global variables */
-#include "kinsol.h"         /* KINSOL constants and prototypes               */
-#include "kinspgmr.h"       /* prototypes of KINSPGMR interface routines     */
-#include "nvector.h"        /* definition of type N_Vector                   */
-#include "sundialstypes.h"  /* definition of type realtype                   */
+#include "kinsol_spils.h"
+#include "fkinsol.h"
+
+#include "kinsol_impl.h"
+
+#include "sundials_nvector.h"
+#include "sundials_types.h"
 
 /*
  * ----------------------------------------------------------------
@@ -54,14 +56,14 @@ extern void FK_PSOL(realtype*, realtype*, realtype*, realtype*,
 
 /*
  * ----------------------------------------------------------------
- * Function : FKIN_SPGMRSETPREC
+ * Function : FKIN_SPILSSETPREC
  * ----------------------------------------------------------------
  */
 
-void FKIN_SPGMRSETPREC(int *flag, int *ier)
+void FKIN_SPILSSETPREC(int *flag, int *ier)
 {
-  if ((*flag) == 0) KINSpgmrSetPreconditioner(KIN_mem, NULL, NULL, NULL);
-  else KINSpgmrSetPreconditioner(KIN_mem, FKINPSet, FKINPSol, NULL);
+  if ((*flag) == 0) KINSpilsSetPreconditioner(KIN_kinmem, NULL, NULL, NULL);
+  else              KINSpilsSetPreconditioner(KIN_kinmem, FKINPSet, FKINPSol, NULL);
 
   return;
 }
@@ -80,8 +82,10 @@ int FKINPSet(N_Vector uu, N_Vector uscale,
              void *P_data,
              N_Vector vtemp1, N_Vector vtemp2)
 {
-  realtype *udata,*uscaledata, *fdata, *fscaledata, *vtemp1data, *vtemp2data;
+  realtype *udata, *uscaledata, *fdata, *fscaledata, *vtemp1data, *vtemp2data;
   int retcode;
+
+  udata = uscaledata = fdata = fscaledata = vtemp1data = vtemp2data = NULL;
 
   udata      = N_VGetArrayPointer(uu);
   uscaledata = N_VGetArrayPointer(uscale);
@@ -114,6 +118,8 @@ int FKINPSol(N_Vector uu, N_Vector uscale,
 {
   realtype *udata, *uscaledata, *fdata, *fscaledata, *vvdata, *ftemdata;
   int retcode;
+
+  udata = uscaledata = fdata = fscaledata = vvdata = ftemdata = NULL;
 
   udata      = N_VGetArrayPointer(uu);
   uscaledata = N_VGetArrayPointer(uscale);

@@ -1,5 +1,5 @@
                      NVECTOR_PARALLEL
-                Release 2.1.1, May 2005
+                Release 2.2.0, March 2006
 
 MPI parallel implementation of the NVECTOR module for SUNDIALS. 
 
@@ -16,6 +16,7 @@ for N_Vector and N_Vector array.
 NVECTOR_PARALLEL provides implementations for all vector operations defined
 by the generic NVECTOR module in the table of operations.
 
+
 A. Documentation
 ----------------
 
@@ -24,31 +25,35 @@ documentation for any of the SUNDIALS solvers [1,2,3,4]. PostScript
 and PDF files for the user guide for a particular solver are available
 in the solver's directory.
 
+
 B. Installation
 ---------------
 
 For basic installation instructions see /sundials/INSTALL. 
 For complete installation instructions see any of the user guides.
 
+
 C. References
 -------------
 
-[1] A. C. Hindmarsh and R. Serban, "User Documentation for CVODE v2.2.0," 
+[1] A. C. Hindmarsh and R. Serban, "User Documentation for CVODE v2.4.0," 
     LLLNL technical report UCRL-MA-208108, November 2004.
 
-[2] A. C. Hindmarsh and R. Serban, "User Documentation for CVODES v2.1.0," 
+[2] A. C. Hindmarsh and R. Serban, "User Documentation for CVODES v2.4.0," 
     LLNL technical report UCRL-MA-208111, November 2004.
 
-[3] A. C. Hindmarsh and R. Serban, "User Documentation for IDA v2.2.0," 
+[3] A. C. Hindmarsh and R. Serban, "User Documentation for IDA v2.4.0," 
     LLNL technical report UCRL-MA-208112, November 2004.
 
 [4] A. M. Collier, A. C. Hindmarsh, R. Serban,and C. S. Woodward, "User 
-    Documentation for KINSOL v2.2.0," LLNL technical report UCRL-MA-208116, 
+    Documentation for KINSOL v2.4.0," LLNL technical report UCRL-MA-208116, 
     November 2004.
+
 
 D. Releases
 -----------
 
+v. 2.2.0 - Mar. 2006
 v. 2.1.1 - May. 2005
 v. 2.1.0 - Apr. 2005
 v. 2.0.2 - Mar. 2005
@@ -60,8 +65,17 @@ v. 1.0   - Jul. 2002 (first SUNDIALS release)
 E. Revision History
 -------------------
 
-v. 2.1.0 (Apr. 2005) ---> v. 2.1.1 (May.2005)
+v. 2.1.1 (May. 2005) ---> v. 2.2.0 (Mar. 2006)
 ----------------------------------------------
+
+- none
+
+v. 2.1.0 (Apr. 2005) ---> v. 2.1.1 (May. 2005)
+----------------------------------------------
+
+- Changes to user interface
+   - added argument to initialization routines to allow user to specify a
+     different MPI communicator
 
 - Changes to data structures
    - added N_VCloneEmpty to global vector operations table
@@ -102,4 +116,3 @@ v. 1.0 (Jul. 2002) ---> v. 2.0 (Dec. 2004)
 - Revised the F/C interface to use underscore flags for name mapping
   and to use precision flag from configure.
 - Revised F/C routine NVECTOR names for uniformity.
-

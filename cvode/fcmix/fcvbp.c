@@ -1,9 +1,9 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.6 $
- * $Date: 2004/11/24 22:43:29 $
+ * $Revision: 1.14 $
+ * $Date: 2006/02/02 00:30:58 $
  * ----------------------------------------------------------------- 
- * Programmer(s): Radu Serban @ LLNL
+ * Programmer(s): Radu Serban and Aaron Collier @ LLNL
  * -----------------------------------------------------------------
  * Copyright (c) 2002, The Regents of the University of California.
  * Produced at the Lawrence Livermore National Laboratory.
@@ -20,14 +20,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "cvbandpre.h"      /* prototypes of CVBANDPRE functions and macros */
-#include "cvode.h"          /* CVODE constants and prototypes               */
-#include "cvspgmr.h"        /* prototypes of CVSPGMR interface routines     */
-#include "fcvbp.h"          /* prototypes of interfaces to CVBANDPRE        */
-#include "fcvode.h"         /* actual function names, prototypes and
-			       global variables                             */
-#include "nvector.h"        /* definition of type N_Vector                  */
-#include "sundialstypes.h"  /* definition of type realtype                  */
+#include "fcvode.h"           /* actual fn. names, prototypes and global vars.*/
+#include "fcvbp.h"            /* prototypes of interfaces to CVBANDPRE        */
+
+#include "cvode.h"            /* CVODE constants and prototypes               */
+#include "cvode_bandpre.h"    /* prototypes of CVBANDPRE functions and macros */
+
+#include "cvode_sptfqmr.h"    /* prototypes of CVSPTFQMR interface routines   */
+#include "cvode_spbcgs.h"     /* prototypes of CVSPBCG interface routines     */
+#include "cvode_spgmr.h"      /* prototypes of CVSPGMR interface routines     */
+
+#include "sundials_nvector.h" /* definition of type N_Vector                  */
+#include "sundials_types.h"   /* definition of type realtype                  */
 
 /***************************************************************************/
 
@@ -49,6 +53,48 @@ void FCV_BPINIT(long int *N, long int *mu, long int *ml, int *ier)
 
 /***************************************************************************/
 
+void FCV_BPSPTFQMR(int *pretype, int *maxl, realtype *delt, int *ier)
+{
+  /* 
+     Call CVBPSptfqmr to specify the SPTFQMR linear solver:
+     CV_cvodemem is the pointer to the CVODE memory block
+     pretype    is the preconditioner type
+     maxl       is the maximum Krylov dimension
+     delt       is the linear convergence tolerance factor 
+  */
+
+  *ier = CVBPSptfqmr(CV_cvodemem, *pretype, *maxl, CVBP_Data);
+  if (*ier != CVSPILS_SUCCESS) return;
+
+  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  if (*ier != CVSPILS_SUCCESS) return;
+
+  CV_ls = CV_LS_SPTFQMR;
+}
+
+/***************************************************************************/
+
+void FCV_BPSPBCG(int *pretype, int *maxl, realtype *delt, int *ier)
+{
+  /* 
+     Call CVBPSpbcg to specify the SPBCG linear solver:
+     CV_cvodemem is the pointer to the CVODE memory block
+     pretype    is the preconditioner type
+     maxl       is the maximum Krylov dimension
+     delt       is the linear convergence tolerance factor 
+  */
+
+  *ier = CVBPSpbcg(CV_cvodemem, *pretype, *maxl, CVBP_Data);
+  if (*ier != CVSPILS_SUCCESS) return;
+
+  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  if (*ier != CVSPILS_SUCCESS) return;
+
+  CV_ls = CV_LS_SPBCG;
+}
+
+/***************************************************************************/
+
 void FCV_BPSPGMR(int *pretype, int *gstype, int *maxl, realtype *delt, int *ier)
 {
   /* 
@@ -61,25 +107,25 @@ void FCV_BPSPGMR(int *pretype, int *gstype, int *maxl, realtype *delt, int *ier)
   */
 
   *ier = CVBPSpgmr(CV_cvodemem, *pretype, *maxl, CVBP_Data);
-  if (*ier != CVSPGMR_SUCCESS) return;
+  if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpgmrSetGSType(CV_cvodemem, *gstype);
-  if (*ier != CVSPGMR_SUCCESS) return;
+  *ier = CVSpilsSetGSType(CV_cvodemem, *gstype);
+  if (*ier != CVSPILS_SUCCESS) return;
 
-  *ier = CVSpgmrSetDelt(CV_cvodemem, *delt);
-  if (*ier != CVSPGMR_SUCCESS) return;
+  *ier = CVSpilsSetDelt(CV_cvodemem, *delt);
+  if (*ier != CVSPILS_SUCCESS) return;
 
-  CV_ls = 4;
+  CV_ls = CV_LS_SPGMR;
 }
 
 /***************************************************************************/
 
 /* C function FCVBPOPT to access optional outputs from CVBANDPRE_Data */
 
-void FCV_BPOPT(long int *lenrpw, long int *lenipw, long int *nfe)
+void FCV_BPOPT(long int *lenrwbp, long int *leniwbp, long int *nfebp)
 {
-  CVBandPrecGetWorkSpace(CVBP_Data, lenrpw, lenipw);
-  CVBandPrecGetNumRhsEvals(CVBP_Data, nfe);
+  CVBandPrecGetWorkSpace(CVBP_Data, lenrwbp, leniwbp);
+  CVBandPrecGetNumRhsEvals(CVBP_Data, nfebp);
 }
 
 /***************************************************************************/
@@ -89,5 +135,5 @@ void FCV_BPOPT(long int *lenrpw, long int *lenipw, long int *nfe)
 
 void FCV_BPFREE(void)
 {
-  CVBandPrecFree(CVBP_Data);
+  CVBandPrecFree(&CVBP_Data);
 }

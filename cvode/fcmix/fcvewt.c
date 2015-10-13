@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.1.2.2 $
- * $Date: 2005/04/06 23:32:53 $
+ * $Revision: 1.6 $
+ * $Date: 2006/01/11 21:13:45 $
  * ----------------------------------------------------------------- 
  * Programmer: Radu Serban @ LLNL
  * -----------------------------------------------------------------
@@ -18,9 +18,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "fcvode.h"         /* actual fn. names, prototypes and global vars.  */
-#include "nvector.h"        /* definitions of type N_Vector and vector macros */
-#include "sundialstypes.h"  /* definition of type realtype                    */
+#include "fcvode.h"           /* actual fn. names, prototypes and global vars.  */
+#include "cvode_impl.h"       /* definition of CVodeMem type                    */
+#include "sundials_nvector.h" /* definitions of type N_Vector and vector macros */
+#include "sundials_types.h"   /* definition of type realtype                    */
 
 /***************************************************************************/
 
@@ -29,17 +30,27 @@
 #ifdef __cplusplus  /* wrapper to enable C++ usage */
 extern "C" {
 #endif
-  extern void FCV_EWT(realtype*, realtype*, int*);
+  extern void FCV_EWT(realtype*, realtype*,  /* Y, EWT */ 
+                      long int*, realtype*,  /* IPAR, RPAR */
+                      int*);                 /* IER */
 #ifdef __cplusplus
 }
 #endif
 
 /***************************************************************************/
 
+/* 
+ * User-callable function to interface to CVodeSetEwtFn.
+ */
+
 void FCV_EWTSET(int *flag, int *ier)
 {
-  if (*flag == 1)
-    *ier = CVodeSetEwtFn(CV_cvodemem, FCVEwtSet, NULL);
+  CVodeMem cv_mem;
+
+  if (*flag != 0) {
+    cv_mem = (CVodeMem) CV_cvodemem;
+    *ier = CVodeSetEwtFn(CV_cvodemem, FCVEwtSet, cv_mem->cv_f_data);
+  }
 }
 
 /***************************************************************************/
@@ -52,11 +63,14 @@ int FCVEwtSet(N_Vector y, N_Vector ewt, void *e_data)
 {
   int ier = 0;
   realtype *ydata, *ewtdata;
+  FCVUserData CV_userdata;
 
   ydata  = N_VGetArrayPointer(y);
   ewtdata = N_VGetArrayPointer(ewt);
 
-  FCV_EWT(ydata, ewtdata, &ier);
+  CV_userdata = (FCVUserData) e_data;
+
+  FCV_EWT(ydata, ewtdata, CV_userdata->ipar, CV_userdata->rpar, &ier);
 
   return(ier);
 }

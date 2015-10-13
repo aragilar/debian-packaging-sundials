@@ -1,5 +1,5 @@
                               CVODE
-                    Release 2.3.0, April 2005
+                    Release 2.4.0, March 2006
              Scott D. Cohen, Alan C. Hindmarsh, Radu Serban
               Center for Applied Scientific Computing, LLNL
 
@@ -14,11 +14,13 @@ communication between processors is done with the MPI (Message Passage
 Interface) system. 
 
 When used with the serial NVECTOR module, CVODE provides both direct (dense 
-and band) and a preconditioned Krylov (iterative) linear solvers. When CVODE 
-is used with the parallel NVECTOR module, only the Krylov linear solver is 
-available. (An approximate diagonal Jacobian option is available with both 
+and band) and preconditioned Krylov (iterative) linear solvers. Three different
+iterative solvers are available: scaled preconditioned GMRES (SPGMR), scaled 
+preconditioned BiCGStab (SPBCG), and scaled preconditioned TFQMR (SPTFQMR). 
+When CVODE is used with the parallel NVECTOR module, only the Krylov linear solvers 
+are available. (An approximate diagonal Jacobian option is available with both 
 versions.)  For the serial version, there is a banded preconditioner module 
-called CVBANDPRE available for use with the Krylov solver, while for the parallel 
+called CVBANDPRE available for use with the Krylov solvers, while for the parallel 
 version there is a preconditioner module called CVBBDPRE which provides a
 band-block-diagonal preconditioner.
 
@@ -35,12 +37,14 @@ The notes below provide the location of documentation, directions for the
 installation of the CVODE package, and relevant references. Following that 
 is a brief history of revisions to the package.
 
+
 A. Documentation
 ----------------
 
 /sundials/cvode/doc contains PostScript and PDF files for the 
 CVODE User Guide (cv_guide.ps and cv_guide.pdf) and the CVODE
 Examples (cv_examples.ps and cv_examples.pdf) documents.
+
 
 B. Installation
 ---------------
@@ -49,13 +53,14 @@ For basic installation instructions see the file /sundials/INSTALL_NOTES.
 For complete installation instructions see the "CVODE Installation Procedure"
 chapter in the CVODE User Guide.
 
+
 C. References
 -------------
 
-[1] A. C. Hindmarsh and R. Serban, "User Documentation for CVODE v2.2.0," 
+[1] A. C. Hindmarsh and R. Serban, "User Documentation for CVODE v2.4.0," 
     LLLNL technical report UCRL-SM-208108, November 2004.
 
-[2] A. C. Hindmarsh and R. Serban, "Example Programs for CVODE v2.2.0," 
+[2] A. C. Hindmarsh and R. Serban, "Example Programs for CVODE v2.4.0," 
     LLNL technical report UCRL-SM-208110, November 2004.
 
 [3] S.D. Cohen and A.C. Hindmarsh, "CVODE, a Stiff/nonstiff ODE Solver in C,"
@@ -64,11 +69,13 @@ C. References
 [4] A. C. Hindmarsh, P. N. Brown, K. E. Grant, S. L. Lee, R. Serban, 
     D. E. Shumaker, and C. S. Woodward, "SUNDIALS, Suite of Nonlinear and 
     Differential/Algebraic Equation Solvers," ACM Trans. Math. Softw., 
-    to appear.
+    31(3), pp. 363-396, 2005.
+
 
 D. Releases
 -----------
 
+v. 2.4.0       - Mar. 2006
 v. 2.3.0       - Apr. 2005
 v. 2.2.2       - Mar. 2005
 v. 2.2.1       - Jan. 2005
@@ -81,6 +88,62 @@ v. 1.0 (CVODE) - Sep. 1994 (date written)
 
 E. Revision History
 -------------------
+
+v. 2.3.0 (Apr. 2005) ---> v. 2.4.0 (Mar. 2006)
+---------------------------------------------------------
+
+- New features
+   - added CVSPBCG interface module to allow CVODE to interface with the
+     shared SPBCG (scaled preconditioned Bi-CGSTAB) linear solver module.
+   - added CVSPTFQMR interface module to allow CVODE to interface with
+     the shared SPTFQMR (scaled preconditioned TFQMR) linear solver module.
+   - added support for SPBCG and SPTFQMR to the CVBBDPRE and CVBANDPRE 
+     preconditioner modules.
+   - added support for interpreting failures in user-supplied functions.
+
+- Changes to user interface
+   - changed argument of CVodeFree, CVBandPrecFree, and CVBBDPrecFree to
+     be the address of the respective memory block pointer, so that its
+     NULL value is propagated back to the calling function.
+   - added CVSPBCG module which defines appropriate CVSpbcg* functions to
+     allow CVODE to interface with the shared SPBCG linear solver module.
+   - added CVBBDSpbcg function to CVBBDPRE module and CVBPSpbcg function to
+     CVBANDPRE module to support SPBCG linear solver module.
+   - added CVBBDSptfqmr function to CVBBDPRE module and CVBPSptfqmr function to
+     CVBANDPRE module to support SPTFQMR linear solver module.
+   - changed function type names (not the actual definition) to accomodate
+     all the Scaled Preconditioned Iterative Linear Solvers now available:
+       CVSpgmrJactimesVecFn -> CVSpilsJacTimesVecFn
+       CVSpgmrPrecSetupFn   -> CVSpilsPrecSetupFn
+       CVSpgmrPrecSolveFn   -> CVSpilsPrecSolveFn 
+   - changed function types so that all user-supplied functions return
+     an integer flag (not all of them currently used).
+   - changed some names for CVBBDPRE and CVBANDPRE function outputs
+   - added option for user-supplied error handler function.
+   - renamed all exported header files (except for cvode.h, all header files
+     have the prefix 'cvode_')
+   - changed naming scheme for CVODE examples
+
+- Changes to the FCVODE module
+   - added support for CVSPBCG/SPBCG (added FCV*SPBCG* functions).
+   - added support for CVSPTFQMR/SPTFQMR (added FCV*SPTFQMR* functions).
+   - optional inputs are now set using routines FCVSETIIN (integer inputs)
+     and FCVSETRIN (real inputs) through pairs key-value. Optional outputs
+     are still obtained from two arrays (IOUT and ROUT), owned by the user
+     and passed as arguments to FCVMALLOC. Note that the argument OPTIN
+     was removed from FCVMALLOC.
+   - changed the prototypes of user-supplied functions so that they all
+     return an error flag as their last argument (not all of them currently used).
+   - the arguments OPTIN, IOPT, and ROPT were removed from FCVREINIT
+
+- Changes related to the build system
+   - updated configure script and Makefiles for Fortran examples to avoid C++
+     compiler errors (now use CC and MPICC to link only if necessary)
+   - the main CVODE header file (cvode.h) is still exported to the install include
+     directory. However, all other CVODE header files are exported into a 'cvode'
+     subdirectory of the install include directory.
+   - the CVODE library now contains all shared object files (there is no separate
+     libsundials_shared library anymore)
 
 v. 2.2.2 (Mar. 2005) ---> v. 2.3.0 (Apr. 2005)
 ----------------------------------------------

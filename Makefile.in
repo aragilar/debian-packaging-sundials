@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
-# $Revision: 1.5.2.3 $
-# $Date: 2005/02/14 23:13:53 $
+# $Revision: 1.10 $
+# $Date: 2005/06/20 17:24:15 $
 # -----------------------------------------------------------------
 # Programmer(s): Radu Serban and Aaron Collier @ LLNL
 # -----------------------------------------------------------------
@@ -48,14 +48,14 @@ all:
 	 done
 
 install:
-	@for i in ${COMPONENTS} ; do          \
-	   if test -d $${i} ; then            \
-	     echo "Installing $${i}..." ;     \
-	     cd $${i} ;                       \
-	     ${MAKE} install ;                \
-	     cd ${abs_builddir} ;             \
-	     echo "" ;                        \
-	   fi ;                               \
+	@for i in ${COMPONENTS} ; do      \
+	   if test -d $${i} ; then        \
+	     echo "Installing $${i}..." ; \
+	     cd $${i} ;                   \
+	     ${MAKE} install ;            \
+	     cd ${abs_builddir} ;         \
+	     echo "" ;                    \
+	   fi ;                           \
 	 done
 
 clean:
@@ -128,7 +128,8 @@ distclean: clean examples_clean
 	 rm -f config.status ;                 \
 	 rm -f config.cache ;                  \
 	 rm -f config.h                        \
-	 rm -f sundials_config.h ;             \
+	 rm -f config/sundials_config.h ;      \
+	 rm -f config/fortran_update.sh ;      \
 	 rm -f Makefile
 
 uninstall: examples_uninstall

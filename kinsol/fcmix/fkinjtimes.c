@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.7.2.2 $
- * $Date: 2005/04/07 00:18:39 $
+ * $Revision: 1.15 $
+ * $Date: 2006/02/02 00:36:20 $
  * -----------------------------------------------------------------
  * Programmer(s): Allan Taylor, Alan Hindmarsh and
  *                Radu Serban @ LLNL
@@ -19,11 +19,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "fkinsol.h"        /* prototypes of interfaces and global variables */
-#include "kinsol.h"         /* KINSOL constants and prototypes               */
-#include "kinspgmr.h"       /* prototypes of KINSPGMR interface routines     */
-#include "nvector.h"        /* definition of type N_Vector                   */
-#include "sundialstypes.h"  /* definition of type realtype                   */
+#include "kinsol_spils.h"
+#include "fkinsol.h"
+#include "kinsol_impl.h"
+
+#include "sundials_nvector.h"
+#include "sundials_types.h"
 
 /*
  * ----------------------------------------------------------------
@@ -42,14 +43,16 @@ extern void FK_JTIMES(realtype*, realtype*, int*, realtype*, int*);
 
 /*
  * ----------------------------------------------------------------
- * Function : FKIN_SPGMRSETJAC
+ * Function : FKIN_SPILSSETJAC
  * ----------------------------------------------------------------
  */
 
-void FKIN_SPGMRSETJAC(int *flag, int *ier)
+void FKIN_SPILSSETJAC(int *flag, int *ier)
 {
-  if ((*flag) == 0) KINSpgmrSetJacTimesVecFn(KIN_mem, NULL, NULL);
-  else KINSpgmrSetJacTimesVecFn(KIN_mem, FKINJtimes, NULL);
+  if ((*flag) == 0) KINSpilsSetJacTimesVecFn(KIN_kinmem, NULL, NULL);
+  else              KINSpilsSetJacTimesVecFn(KIN_kinmem, FKINJtimes, NULL);
+
+  return;
 }
 
 /*
@@ -57,7 +60,7 @@ void FKIN_SPGMRSETJAC(int *flag, int *ier)
  * Function : FKINJtimes
  * ----------------------------------------------------------------
  * C function FKINJtimes is used to interface between
- * KINSpgmr/KINSpgmrJTimes and FK_JTIMES (user-supplied Fortran
+ * KINSp* / KINSp*JTimes and FK_JTIMES (user-supplied Fortran
  * routine).
  * ----------------------------------------------------------------
  */
@@ -66,14 +69,16 @@ int FKINJtimes(N_Vector v, N_Vector Jv,
                N_Vector uu, booleantype *new_uu, 
                void *J_data)
 {
- int retcode;
- realtype *vdata, *Jvdata, *uudata;
- 
- vdata  = N_VGetArrayPointer(v);
- uudata = N_VGetArrayPointer(uu);
- Jvdata = N_VGetArrayPointer(Jv);
- 
- FK_JTIMES(vdata, Jvdata, (int *)new_uu, uudata, &retcode);
+  int retcode;
+  realtype *vdata, *Jvdata, *uudata;
 
- return(retcode);
+  vdata = Jvdata = uudata = NULL;
+
+  vdata  = N_VGetArrayPointer(v);
+  uudata = N_VGetArrayPointer(uu);
+  Jvdata = N_VGetArrayPointer(Jv);
+ 
+  FK_JTIMES(vdata, Jvdata, (int *) new_uu, uudata, &retcode);
+
+  return(retcode);
 }

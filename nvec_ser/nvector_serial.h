@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.13.2.2 $
- * $Date: 2005/04/28 21:36:11 $
+ * $Revision: 1.20 $
+ * $Date: 2006/01/11 21:14:01 $
  * ----------------------------------------------------------------- 
  * Programmer(s): Scott D. Cohen, Alan C. Hindmarsh, Radu Serban,
  *                and Aaron Collier @ LLNL
@@ -30,11 +30,11 @@
  *   - The definition of the generic N_Vector structure can be found
  *     in the header file shared/include/nvector.h.
  *
- *   - The definition of the type realtype can be found in the
+ *   - The definition of the type 'realtype' can be found in the
  *     header file shared/include/sundialstypes.h, and it may be
  *     changed (at the configuration stage) according to the user's
  *     needs. The sundialstypes.h file also contains the definition
- *     for the type booleantype.
+ *     for the type 'booleantype'.
  *
  *   - N_Vector arguments to arithmetic vector operations need not
  *     be distinct. For example, the following call:
@@ -53,8 +53,7 @@
 extern "C" {
 #endif
 
-#include "nvector.h"
-#include "sundialstypes.h"
+#include "sundials_nvector.h"
 
 /*
  * -----------------------------------------------------------------
@@ -64,7 +63,7 @@ extern "C" {
 
 /* serial implementation of the N_Vector 'content' structure
    contains the length of the vector, a pointer to an array
-   of realtype components, and a flag indicating ownership of
+   of 'realtype' components, and a flag indicating ownership of
    the data */
 
 struct _N_VectorContent_Serial {
@@ -141,14 +140,14 @@ typedef struct _N_VectorContent_Serial *N_VectorContent_Serial;
  * CONSTRUCTORS:
  *    N_VNew_Serial
  *    N_VNewEmpty_Serial
- *    N_VClone_Serial
- *    N_VCloneEmpty_Serial
  *    N_VMake_Serial
- *    N_VNewVectorArray_Serial
- *    N_VNewVectorArrayEmpty_Serial
+ *    N_VCloneVectorArray_Serial
+ *    N_VCloneVectorArrayEmpty_Serial
  * DESTRUCTORS:
  *    N_VDestroy_Serial
  *    N_VDestroyVectorArray_Serial
+ * OTHER:
+ *    N_VPrint_Serial
  * -----------------------------------------------------------------
  */
 
@@ -186,33 +185,32 @@ N_Vector N_VMake_Serial(long int vec_length, realtype *v_data);
 
 /*
  * -----------------------------------------------------------------
- * Function : N_VNewVectorArray_Serial
+ * Function : N_VCloneVectorArray_Serial
  * -----------------------------------------------------------------
- * This function creates an array of 'count' serial vectors. This
- * array of N_Vectors can be freed using N_VDestroyVectorArray
- * (defined by the generic NVECTOR module).
+ * This function creates an array of 'count' SERIAL vectors by
+ * cloning a given vector w.
  * -----------------------------------------------------------------
  */
 
-N_Vector *N_VNewVectorArray_Serial(int count, long int vec_length);
+N_Vector *N_VCloneVectorArray_Serial(int count, N_Vector w);
 
 /*
  * -----------------------------------------------------------------
- * Function : N_VNewVectorArrayEmpty_Serial
+ * Function : N_VCloneVectorArrayEmpty_Serial
  * -----------------------------------------------------------------
- * This function creates an array of 'count' serial vectors each
- * with an empty (NULL) data array.
+ * This function creates an array of 'count' SERIAL vectors each
+ * with an empty (NULL) data array by cloning w.
  * -----------------------------------------------------------------
  */
 
-N_Vector *N_VNewVectorArrayEmpty_Serial(int count, long int vec_length);
+N_Vector *N_VCloneVectorArrayEmpty_Serial(int count, N_Vector w);
 
 /*
  * -----------------------------------------------------------------
  * Function : N_VDestroyVectorArray_Serial
  * -----------------------------------------------------------------
- * This function frees an array of N_Vector created with 
- * N_VNewVectorArray_Serial.
+ * This function frees an array of SERIAL vectors created with 
+ * N_VCloneVectorArray_Serial or N_VCloneVectorArrayEmpty_Serial.
  * -----------------------------------------------------------------
  */
 

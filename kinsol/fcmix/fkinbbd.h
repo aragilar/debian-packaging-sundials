@@ -1,7 +1,7 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.21.2.2 $
- * $Date: 2005/03/18 23:29:26 $
+ * $Revision: 1.29 $
+ * $Date: 2006/01/25 22:18:31 $
  * -----------------------------------------------------------------
  * Programmer(s): Allan Taylor, Alan Hindmarsh, Radu Serban, and
  *                Aaron Collier @ LLNL
@@ -24,15 +24,18 @@
  use of the KINSOL solver with the KINBBDPRE preconditioner module, for the
  solution of nonlinear systems in a mixed Fortran/C setting. The combination
  of KINSOL and KINBBDPRE solves systems f(u) = 0 with the SPGMR (scaled
- preconditioned GMRES) method for the linear systems that arise, and with a
- preconditioner that is block-diagonal with banded blocks. While KINSOL and
- KINBBDPRE are written in C, it is assumed here that the user's calling program
- and user-supplied problem-defining routines are written in Fortran.
+ preconditioned GMRES), SPBCG (scaled preconditioned Bi-CGSTAB), or SPTFQMR
+ (scaled preconditioned TFQMR) method for the linear systems that arise, and
+ with a preconditioner that is block-diagonal with banded blocks. While KINSOL
+ and KINBBDPRE are written in C, it is assumed here that the user's calling
+ program and user-supplied problem-defining routines are written in Fortran.
 
  The user-callable functions in this package, with the corresponding KINSOL and
  KINBBDPRE functions, are as follows:
 
    FKINBBDINIT : interfaces to KINBBDPrecAlloc
+   FKINBBDSPTFQMR: interfaces with KINSptfqmr
+   FKINBBDSPBCG : interfaces with KINSpbcg
    FKINBBDSPGMR : interfaces with KINSpgmr
    FKINBBDOPT : accesses optional outputs
    FKINBBDFREE : interfaces to KINBBDPrecFree
@@ -70,12 +73,12 @@
 
      The user must in all cases supply the following Fortran routine:
 
-       SUBROUTINE FKFUN (UU, FVAL)
+       SUBROUTINE FKFUN (UU, FVAL, IER)
        DIMENSION UU(*), FVAL(*)
 
      It must set the FVAL array to f(u), the system function, as a function
      of the array UU = u. Here UU and FVAL are vectors (distributed in the
-     parallel case).
+     parallel case). IER is a return flag (currently not used).
 
  (2) Optional user-supplied Jacobian-vector product routine: FKJTIMES
 
@@ -83,7 +86,7 @@
      of the system Jacobian and a given vector. The user-supplied function
      must have the following form:
 
-       SUBROUTINE FKJTIMES(V, Z, NEWU, UU, IER)
+       SUBROUTINE FKJTIMES (V, Z, NEWU, UU, IER)
        DIMENSION V(*), Z(*), UU(*)
 
      This must set the array Z to the product J*V, where J is the Jacobian
@@ -110,7 +113,7 @@
 
        The user must supply a subroutine of the following form:
 
-         SUBROUTINE FKLOCFN (NLOC, ULOC, GLOC)
+         SUBROUTINE FKLOCFN (NLOC, ULOC, GLOC, IER)
          DIMENSION ULOC(*), GLOC(*) 
 
        The routine is used to compute the function g(u) which approximates the
@@ -119,13 +122,13 @@
        mathematically identical to f is allowed. It takes as input the local
        vector length (NLOC) and the local real solution array ULOC. It is to
        compute the local part of g(u) and store the result in the realtype
-       array GLOC.
+       array GLOC. IER is a return flag (currently not used).
 
  (3.2) Communication function: FKCOMMFN
 
        The user must also supply a subroutine of the following form:
 
-         SUBROUTINE FKCOMMFN (NLOC, ULOC)
+         SUBROUTINE FKCOMMFN (NLOC, ULOC, IER)
          DIMENSION ULOC(*)
 
        The routine is used to perform all inter-process communication necessary
@@ -135,14 +138,15 @@
        work space defined by the user, and made available to FKLOCFN. Each call
        to the FKCOMMFN function is preceded by a call to FKFUN with the same
        arguments. Thus FKCOMMFN can omit any communications done by FKFUN if
-       relevant to the evaluation of g.
+       relevant to the evaluation of g. IER is a return flag (currently not
+       used).
 
- (4) Initialization: FNVINITP, FKINMALLOC, FKINBBDINIT, and FKINBBDSPGMR
+ (4) Initialization: FNVINITP, FKINMALLOC, FKINBBDINIT, and FKINBBDSP*
 
  (4.1) To initialize the parallel machine environment, the user must make the
        following call:
 
-         CALL FNVINITP (NLOCAL, NGLOBAL, IER)
+         CALL FNVINITP (5, NLOCAL, NGLOBAL, IER)
 
        The arguments are:
          NLOCAL  = local size of vectors associated with process
@@ -190,18 +194,42 @@
          IER      = return completion flag. Values are 0 = success, and
                     -1 = failure.
 
- (4.4) To specify the SPGMR linear system solver, and to allocate memory
-       and initialize data associated with the SPGMR method, make the
-       following call:
+ (4.4A) To specify the SPTFQMR linear system solver, and to allocate memory
+        and initialize data associated with the SPTFQMR method, make the
+        following call:
 
-         CALL FKINBBDSPGMR (MAXL, MAXLRST, IER)
+          CALL FKINBBDSPTFQMR (MAXL, IER)
 
-       The arguments are:
-         MAXL     = maximum Krylov subspace dimension
-                    Note: 0 indicates default.
-         MAXLRST  = maximum number of linear solver restarts
-         IER      = return completion flag. Values are 0 = success, and
-                    -1 = failure.
+        The arguments are:
+          MAXL     = maximum Krylov subspace dimension
+                     Note: 0 indicates default.
+          IER      = return completion flag. Values are 0 = success, and
+                     -1 = failure.
+
+ (4.4B) To specify the SPBCG linear system solver, and to allocate memory
+        and initialize data associated with the SPBCG method, make the
+        following call:
+
+          CALL FKINBBDSPBCG (MAXL, IER)
+
+        The arguments are:
+          MAXL     = maximum Krylov subspace dimension
+                     Note: 0 indicates default.
+          IER      = return completion flag. Values are 0 = success, and
+                     -1 = failure.
+
+ (4.4C) To specify the SPGMR linear system solver, and to allocate memory
+        and initialize data associated with the SPGMR method, make the
+        following call:
+
+          CALL FKINBBDSPGMR (MAXL, MAXLRST, IER)
+
+        The arguments are:
+          MAXL     = maximum Krylov subspace dimension
+                     Note: 0 indicates default.
+          MAXLRST  = maximum number of linear solver restarts
+          IER      = return completion flag. Values are 0 = success, and
+                     -1 = failure.
 
  (5) To solve the system, make the following call:
 
@@ -233,14 +261,13 @@
                 Note: This size is local to the current process.
        NGE    = number of g(u) evaluations (calls to FKLOCFN)
 
- (7) Memory freeing: FKINBBDFREE, FKINFREE and FNVFREEP
+ (7) Memory freeing: FKINBBDFREE and FKINFREE
 
      To the free the internal memory created by the calls to FKINBBDINIT, FNVINITP
      and FKINMALLOC, make the following calls, in this order:
 
        CALL FKINBBDFREE
        CALL FKINFREE
-       CALL FNVFREEP
 
 *******************************************************************************/
 
@@ -257,8 +284,8 @@ extern "C" {
  * -----------------------------------------------------------------
  */
 
-#include "nvector.h"        /* definition of type N_Vector */
-#include "sundialstypes.h"  /* definition of type realtype */
+#include "sundials_nvector.h" /* definition of type N_Vector */
+#include "sundials_types.h"   /* definition of type realtype */
 
 /*
  * -----------------------------------------------------------------
@@ -268,66 +295,80 @@ extern "C" {
 
 #if defined(F77_FUNC)
 
-#define FKIN_BBDINIT  F77_FUNC(fkinbbdinit, FKINBBDINIT)
-#define FKIN_BBDSPGMR F77_FUNC(fkinbbdspgmr, FKINBBDSPGMR)
-#define FKIN_BBDOPT   F77_FUNC(fkinbbdopt, FKINBBDOPT)
-#define FKIN_BBDFREE  F77_FUNC(fkinbbdfree, FKINBBDFREE)
-#define FK_COMMFN     F77_FUNC(fkcommfn, FKCOMMFN)
-#define FK_LOCFN      F77_FUNC(fklocfn, FKLOCFN)
+#define FKIN_BBDINIT    F77_FUNC(fkinbbdinit, FKINBBDINIT)
+#define FKIN_BBDSPTFQMR F77_FUNC(fkinbbdsptfqmr, FKINBBDSPTFQMR)
+#define FKIN_BBDSPBCG   F77_FUNC(fkinbbdspbcg, FKINBBDSPBCG)
+#define FKIN_BBDSPGMR   F77_FUNC(fkinbbdspgmr, FKINBBDSPGMR)
+#define FKIN_BBDOPT     F77_FUNC(fkinbbdopt, FKINBBDOPT)
+#define FKIN_BBDFREE    F77_FUNC(fkinbbdfree, FKINBBDFREE)
+#define FK_COMMFN       F77_FUNC(fkcommfn, FKCOMMFN)
+#define FK_LOCFN        F77_FUNC(fklocfn, FKLOCFN)
 
 #elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_LOWER)
 
-#define FKIN_BBDINIT  fkinbbdinit
-#define FKIN_BBDSPGMR fkinbbdspgmr
-#define FKIN_BBDOPT   fkinbbdopt
-#define FKIN_BBDFREE  fkinbbdfree
-#define FK_COMMFN     fkcommfn
-#define FK_LOCFN      fklocfn
+#define FKIN_BBDINIT    fkinbbdinit
+#define FKIN_BBDSPTFQMR fkinbbdsptfqmr
+#define FKIN_BBDSPBCG   fkinbbdspbcg
+#define FKIN_BBDSPGMR   fkinbbdspgmr
+#define FKIN_BBDOPT     fkinbbdopt
+#define FKIN_BBDFREE    fkinbbdfree
+#define FK_COMMFN       fkcommfn
+#define FK_LOCFN        fklocfn
 
 #elif defined(SUNDIALS_UNDERSCORE_NONE) && defined(SUNDIALS_CASE_UPPER)
 
-#define FKIN_BBDINIT  FKINBBDINIT
-#define FKIN_BBDSPGMR FKINBBDSPGMR
-#define FKIN_BBDOPT   FKINBBDOPT
-#define FKIN_BBDFREE  FKINBBDFREE
-#define FK_COMMFN     FKCOMMFN
-#define FK_LOCFN      FKLOCFN
+#define FKIN_BBDINIT    FKINBBDINIT
+#define FKIN_BBDSPTFQMR FKINBBDSPTFQMR
+#define FKIN_BBDSPBCG   FKINBBDSPBCG
+#define FKIN_BBDSPGMR   FKINBBDSPGMR
+#define FKIN_BBDOPT     FKINBBDOPT
+#define FKIN_BBDFREE    FKINBBDFREE
+#define FK_COMMFN       FKCOMMFN
+#define FK_LOCFN        FKLOCFN
 
 #elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_LOWER)
 
-#define FKIN_BBDINIT  fkinbbdinit_
-#define FKIN_BBDSPGMR fkinbbdspgmr_
-#define FKIN_BBDOPT   fkinbbdopt_
-#define FKIN_BBDFREE  fkinbbdfree_
-#define FK_COMMFN     fkcommfn_
-#define FK_LOCFN      fklocfn_
+#define FKIN_BBDINIT    fkinbbdinit_
+#define FKIN_BBDSPTFQMR fkinbbdsptfqmr_
+#define FKIN_BBDSPBCG   fkinbbdspbcg_
+#define FKIN_BBDSPGMR   fkinbbdspgmr_
+#define FKIN_BBDOPT     fkinbbdopt_
+#define FKIN_BBDFREE    fkinbbdfree_
+#define FK_COMMFN       fkcommfn_
+#define FK_LOCFN        fklocfn_
 
 #elif defined(SUNDIALS_UNDERSCORE_ONE) && defined(SUNDIALS_CASE_UPPER)
 
-#define FKIN_BBDINIT  FKINBBDINIT_
-#define FKIN_BBDSPGMR FKINBBDSPGMR_
-#define FKIN_BBDOPT   FKINBBDOPT_
-#define FKIN_BBDFREE  FKINBBDFREE_
-#define FK_COMMFN     FKCOMMFN_
-#define FK_LOCFN      FKLOCFN_
+#define FKIN_BBDINIT    FKINBBDINIT_
+#define FKIN_BBDSPTFQMR FKINBBDSPTFQMR_
+#define FKIN_BBDSPBCG   FKINBBDSPBCG_
+#define FKIN_BBDSPGMR   FKINBBDSPGMR_
+#define FKIN_BBDOPT     FKINBBDOPT_
+#define FKIN_BBDFREE    FKINBBDFREE_
+#define FK_COMMFN       FKCOMMFN_
+#define FK_LOCFN        FKLOCFN_
 
 #elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_LOWER)
 
-#define FKIN_BBDINIT  fkinbbdinit__
-#define FKIN_BBDSPGMR fkinbbdspgmr__
-#define FKIN_BBDOPT   fkinbbdopt__
-#define FKIN_BBDFREE  fkinbbdfree__
-#define FK_COMMFN     fkcommfn__
-#define FK_LOCFN      fklocfn__
+#define FKIN_BBDINIT    fkinbbdinit__
+#define FKIN_BBDSPTFQMR fkinbbdsptfqmr__
+#define FKIN_BBDSPBCG   fkinbbdspbcg__
+#define FKIN_BBDSPGMR   fkinbbdspgmr__
+#define FKIN_BBDOPT     fkinbbdopt__
+#define FKIN_BBDFREE    fkinbbdfree__
+#define FK_COMMFN       fkcommfn__
+#define FK_LOCFN        fklocfn__
 
 #elif defined(SUNDIALS_UNDERSCORE_TWO) && defined(SUNDIALS_CASE_UPPER)
 
-#define FKIN_BBDINIT  FKINBBDINIT__
-#define FKIN_BBDSPGMR FKINBBDSPGMR__
-#define FKIN_BBDOPT   FKINBBDOPT__
-#define FKIN_BBDFREE  FKINBBDFREE__
-#define FK_COMMFN     FKCOMMFN__
-#define FK_LOCFN      FKLOCFN__
+#define FKIN_BBDINIT    FKINBBDINIT__
+#define FKIN_BBDSPTFQMR FKINBBDSPTFQMR__
+#define FKIN_BBDSPBCG   FKINBBDSPBCG__
+#define FKIN_BBDSPGMR   FKINBBDSPGMR__
+#define FKIN_BBDOPT     FKINBBDOPT__
+#define FKIN_BBDFREE    FKINBBDFREE__
+#define FK_COMMFN       FKCOMMFN__
+#define FK_LOCFN        FKLOCFN__
 
 #endif
 
@@ -337,7 +378,10 @@ extern "C" {
  * -----------------------------------------------------------------
  */
 
-void FKIN_BBDINIT(long int *nlocal, long int *mu, long int *ml, int *ier);
+void FKIN_BBDINIT(long int *nlocal, long int *mudq, long int *mldq,
+		  long int *mu, long int *ml, int *ier);
+void FKIN_BBDSPTFQMR(int *maxl, int *ier);
+void FKIN_BBDSPBCG(int *maxl, int *ier);
 void FKIN_BBDSPGMR(int *maxl, int *maxlrst, int *ier);
 void FKIN_BBDOPT(long int *lenrpw, long int *lenipw, long int *nge);
 void FKIN_BBDFREE(void);
@@ -348,8 +392,8 @@ void FKIN_BBDFREE(void);
  * -----------------------------------------------------------------
  */
 
-void FKINgloc(long int Nloc, N_Vector uu, N_Vector gval, void *f_data);
-void FKINgcomm(long int Nloc, N_Vector uu, void *f_data);
+int FKINgloc(long int Nloc, N_Vector uu, N_Vector gval, void *f_data);
+int FKINgcomm(long int Nloc, N_Vector uu, void *f_data);
 
 /*
  * -----------------------------------------------------------------

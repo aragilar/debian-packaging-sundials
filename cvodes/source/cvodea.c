@@ -1,11 +1,11 @@
 /*
  * -----------------------------------------------------------------
- * $Revision: 1.37.2.7 $
- * $Date: 2005/04/28 20:06:39 $
+ * $Revision: 1.68 $
+ * $Date: 2006/03/15 15:33:49 $
  * ----------------------------------------------------------------- 
- * Programmer(s): Radu Serban and Aaron Collier @ LLNL
+ * Programmer(s): Radu Serban @ LLNL
  * -----------------------------------------------------------------
- * Copyright (c) 2002, The Regents of the University of California.
+ * Copyright (c) 2006, The Regents of the University of California.
  * Produced at the Lawrence Livermore National Laboratory.
  * All rights reserved.
  * For details, see sundials/cvodes/LICENSE.
@@ -14,36 +14,44 @@
  * -----------------------------------------------------------------
  */
 
-/*=================================================================*/
-/*                  Import Header Files                            */
-/*=================================================================*/
+/* 
+ * =================================================================
+ * IMPORTED HEADER FILES
+ * =================================================================
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "cvdiag.h"
 #include "cvodea_impl.h"
-#include "sundialsmath.h"
-#include "sundialstypes.h"
 
-/*=================================================================*/
-/*                  Macros                                         */
-/*=================================================================*/
+#include "sundials_math.h"
+#include "sundials_types.h"
+
+/* 
+ * =================================================================
+ * MACRO DEFINITIONS
+ * =================================================================
+ */
 
 #define loop for(;;)
 
-/*=================================================================*/
-/*                  CVODEA Private Constants                       */
-/*=================================================================*/
+/* 
+ * =================================================================
+ * CVODEA PRIVATE CONSTANTS
+ * =================================================================
+ */
 
-#define ZERO        RCONST(0.0)     /* real 0.0 */
-#define ONE         RCONST(1.0)     /* real 1.0 */
-#define TWO         RCONST(2.0)     /* real 2.0 */
+#define ZERO        RCONST(0.0)        /* real 0.0 */
+#define ONE         RCONST(1.0)        /* real 1.0 */
+#define TWO         RCONST(2.0)        /* real 2.0 */
 #define FUZZ_FACTOR RCONST(1000000.0)  /* fuzz factor for CVadjGetY */
 
-/*=================================================================*/
-/*             Private Functions Prototypes                        */
-/*=================================================================*/
+/* 
+ * =================================================================
+ * PRIVATE FUNCTION PROTOTYPES
+ * =================================================================
+ */
 
 static booleantype CVAallocVectors(CVadjMem ca_mem);
 static void CVAfreeVectors(CVadjMem ca_mem);
@@ -55,49 +63,38 @@ static void CVAckpntDelete(CkpntMem *ck_memPtr);
 static int  CVAdataStore(CVadjMem ca_mem, CkpntMem ck_mem);
 static int  CVAckpntGet(CVodeMem cv_mem, CkpntMem ck_mem); 
 
-static DtpntMem *CVAhermiteMalloc(CVodeMem cv_mem, long int steps);
+static int CVAfindIndex(CVadjMem ca_mem, realtype t, 
+                        long int *indx, booleantype *newpoint);
+
+static booleantype CVAhermiteMalloc(CVadjMem ca_mem, long int steps);
 static void CVAhermiteFree(DtpntMem *dt_mem, long int steps);
-static void CVAhermitePrepare(CVadjMem ca_mem, DtpntMem *dt_mem, long int i);
-static void CVAhermiteInterpolate(CVadjMem ca_mem, DtpntMem *dt_mem,
-                                  long int i, realtype t, N_Vector y);
 static int CVAhermiteGetY(CVadjMem ca_mem, realtype t, N_Vector y);
 static int CVAhermiteStorePnt(CVodeMem cv_mem, DtpntMem d);
 
+static booleantype CVApolynomialMalloc(CVadjMem ca_mem, long int steps);
+static void CVApolynomialFree(DtpntMem *dt_mem, long int steps);
+static int CVApolynomialGetY(CVadjMem ca_mem, realtype t, N_Vector y);
+static int CVApolynomialStorePnt(CVodeMem cv_mem, DtpntMem d);
+
 /* Wrappers */
 
-static void CVArhs(realtype t, N_Vector yB, 
-                   N_Vector yBdot, void *cvadj_mem);
-static void CVAdenseJac(long int nB, DenseMat JB, realtype t, 
-                        N_Vector yB, N_Vector fyB, void *cvadj_mem,
-                        N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B);
-static void CVAbandJac(long int nB, long int mupperB, 
-                       long int mlowerB, BandMat JB, realtype t, 
-                       N_Vector yB, N_Vector fyB, void *cvadj_mem, 
-                       N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B);
-static int CVAspilsPrecSetup(realtype t, N_Vector yB, 
-                             N_Vector fyB, booleantype jokB, 
-                             booleantype *jcurPtrB, realtype gammaB,
-                             void *cvadj_mem,
-                             N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B);
-static int CVAspilsPrecSolve(realtype t, N_Vector yB, N_Vector fyB,
-                             N_Vector rB, N_Vector zB,
-                             realtype gammaB, realtype deltaB,
-                             int lrB, void *cvadj_mem, N_Vector tmpB);
-static int CVAspilsJacTimesVec(N_Vector vB, N_Vector JvB, realtype t, 
-                               N_Vector yB, N_Vector fyB, 
-                               void *cvadj_mem, N_Vector tmpB);
-static void CVArhsQ(realtype t, N_Vector yB, 
-                    N_Vector qBdot, void *cvadj_mem);
+static int CVArhs(realtype t, N_Vector yB, 
+                  N_Vector yBdot, void *cvadj_mem);
 
-static void CVAgloc(long int NlocalB, realtype t, N_Vector yB, N_Vector gB, 
-                    void *cvadj_mem);
+static int CVArhsQ(realtype t, N_Vector yB, 
+                   N_Vector qBdot, void *cvadj_mem);
 
-static void CVAcfn(long int NlocalB, realtype t, N_Vector yB,
-                   void *cvadj_mem);
+/* 
+ * =================================================================
+ * EXPORTED FUNCTIONS IMPLEMENTATION
+ * =================================================================
+ */
 
-/*=================================================================*/
-/*                  Readibility Constants                          */
-/*=================================================================*/
+/* 
+ * -----------------------------------------------------------------
+ * Readibility Constants
+ * -----------------------------------------------------------------
+ */
 
 #define uround      (ca_mem->ca_uround)
 #define tinitial    (ca_mem->ca_tinitial)
@@ -107,34 +104,25 @@ static void CVAcfn(long int NlocalB, realtype t, N_Vector yB,
 #define ckpntData   (ca_mem->ca_ckpntData)
 #define newData     (ca_mem->ca_newData)
 #define np          (ca_mem->ca_np)
-#define delta       (ca_mem->ca_delta)
-#define Y0          (ca_mem->ca_Y0)
-#define Y1          (ca_mem->ca_Y1)
 #define ytmp        (ca_mem->ca_ytmp)
 #define f_B         (ca_mem->ca_fB)
 #define f_data_B    (ca_mem->ca_f_dataB)
-#define djac_B      (ca_mem->ca_djacB)
-#define bjac_B      (ca_mem->ca_bjacB)
-#define jac_data_B  (ca_mem->ca_jac_dataB)
-#define P_data_B    (ca_mem->ca_P_dataB)
 #define fQ_B        (ca_mem->ca_fQB)
 #define fQ_data_B   (ca_mem->ca_fQ_dataB)
-#define gloc_B      (ca_mem->ca_glocB)
-#define cfn_B       (ca_mem->ca_cfnB)
-#define bbd_data_B  (ca_mem->ca_bbd_dataB)
-#define bp_data_B   (ca_mem->ca_bp_dataB)
 #define t_for_quad  (ca_mem->ca_t_for_quad)
-#define pset_B      (ca_mem->ca_psetB)
-#define psolve_B    (ca_mem->ca_psolveB)
-#define jtimes_B    (ca_mem->ca_jtimesB)
-
+#define Y0          (ca_mem->ca_Y0)
+#define Y1          (ca_mem->ca_Y1)
+#define Y           (ca_mem->ca_Y)
+#define T           (ca_mem->ca_T)
 #define interpType  (ca_mem->ca_interpType)
 #define getY        (ca_mem->ca_getY)
 #define storePnt    (ca_mem->ca_storePnt)
+#define lfreeB      (ca_mem->ca_lfreeB)
 
 #define zn         (cv_mem->cv_zn)
 #define nst        (cv_mem->cv_nst)
 #define q          (cv_mem->cv_q)
+#define qu         (cv_mem->cv_qu)
 #define qprime     (cv_mem->cv_qprime)
 #define qwait      (cv_mem->cv_qwait)
 #define L          (cv_mem->cv_L)
@@ -197,10 +185,6 @@ static void CVAcfn(long int NlocalB, realtype t, N_Vector yB,
 #define saved_tq5_ (ck_mem->ck_saved_tq5)
 #define next_      (ck_mem->ck_next)
 
-/*=================================================================*/
-/*                  Exported Functions                             */
-/*=================================================================*/
-
 /*
  * CVadjMalloc
  *
@@ -208,67 +192,126 @@ static void CVAcfn(long int NlocalB, realtype t, N_Vector yB,
  * structure.
  */
 
-void *CVadjMalloc(void *cvode_mem, long int steps)
+void *CVadjMalloc(void *cvode_mem, long int steps, int interp)
 {
   CVadjMem ca_mem;
   CVodeMem cv_mem;
   booleantype allocOK;
+  long int i, ii;
 
   /* Check arguments */
   if (cvode_mem == NULL) {
-    fprintf(stderr, MSGAM_NO_MEM);
+    CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_NULL_CVMEM);
     return(NULL);
   }
+  cv_mem = (CVodeMem)cvode_mem;
+
   if (steps <= 0) {
-    fprintf(stderr, MSGAM_BAD_STEPS);
+    CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_BAD_STEPS);
     return(NULL);
   }
+
+  if ( (interp != CV_HERMITE) && (interp != CV_POLYNOMIAL) ) {
+    CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_BAD_INTERP);
+    return(NULL);
+  } 
 
   /* Allocate memory block */
+  ca_mem = NULL;
   ca_mem = (CVadjMem) malloc(sizeof(struct CVadjMemRec));
   if (ca_mem == NULL) {
-    fprintf(stderr, MSGAM_MEM_FAIL);
+    CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_MEM_FAIL);
     return(NULL);
   }
 
-  /* Attach CVODE memory for forward runs */
-  cv_mem = (CVodeMem)cvode_mem;
+  /* Attach CVODES memory for forward runs */
   ca_mem->cv_mem = cv_mem;
 
-  /* Set interpolation type to cubic Hermite */
-  interpType = CV_HERMITE;
+  /* Set interpType */
+  interpType = interp;
 
   /* Allocate memory for workspace vectors */
   allocOK = CVAallocVectors(ca_mem);
   if (!allocOK) {
-    fprintf(stderr, MSGAM_MEM_FAIL);
+    free(ca_mem); ca_mem = NULL;
+    CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_MEM_FAIL);
     return(NULL);
   }
 
   /* Initialize Check Points linked list */
+  ca_mem->ck_mem = NULL;
   ca_mem->ck_mem = CVAckpntInit(cv_mem);
   if (ca_mem->ck_mem == NULL) {
     CVAfreeVectors(ca_mem);
-    free(ca_mem);
-    fprintf(stderr, MSGAM_MEM_FAIL);
+    free(ca_mem); ca_mem = NULL;
+    CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_MEM_FAIL);
     return(NULL);
+  }
+
+  /* Allocate space for the array of Data Point structures */
+  
+  ca_mem->dt_mem = NULL;
+  ca_mem->dt_mem = (DtpntMem *) malloc((steps+1)*sizeof(struct DtpntMemRec *));
+  if (ca_mem->dt_mem == NULL) {
+    while (ca_mem->ck_mem != NULL) CVAckpntDelete(&(ca_mem->ck_mem));
+    CVAfreeVectors(ca_mem);
+    free(ca_mem); ca_mem = NULL;
+    CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_MEM_FAIL);
+    return(NULL);
+  }
+
+  for (i=0; i<=steps; i++) { 
+    ca_mem->dt_mem[i] = NULL;
+    ca_mem->dt_mem[i] = (DtpntMem) malloc(sizeof(struct DtpntMemRec));
+    if (ca_mem->dt_mem[i] == NULL) {
+      for(ii=0; ii<i; ii++) {free(ca_mem->dt_mem[ii]); ca_mem->dt_mem[ii] = NULL;}
+      free(ca_mem->dt_mem); ca_mem->dt_mem = NULL;
+      while (ca_mem->ck_mem != NULL) CVAckpntDelete(&(ca_mem->ck_mem));
+      CVAfreeVectors(ca_mem);
+      free(ca_mem); ca_mem = NULL;
+      CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_MEM_FAIL);
+      return(NULL);
+    }
   }
 
   switch (interpType) {
 
   case CV_HERMITE:
     /* Allocate Data Points memory */
-    ca_mem->dt_mem = CVAhermiteMalloc(cv_mem, steps);
-    if (ca_mem->dt_mem == NULL) {
-      CVAckpntDelete(&(ca_mem->ck_mem));
+    allocOK = CVAhermiteMalloc(ca_mem, steps);
+    if (!allocOK) {
+      for(i=0; i<=steps; i++) {free(ca_mem->dt_mem[i]); ca_mem->dt_mem[i] = NULL;}
+      free(ca_mem->dt_mem); ca_mem->dt_mem = NULL;
+      while (ca_mem->ck_mem != NULL) CVAckpntDelete(&(ca_mem->ck_mem));
       CVAfreeVectors(ca_mem);
-      free(ca_mem);
-      fprintf(stderr, MSGAM_MEM_FAIL);
+      free(ca_mem); ca_mem = NULL;
+      CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_MEM_FAIL);
       return(NULL);
     }
-    /* Attach interpolation function GetY */
+    /* Attach interpolation functions getY and storePnt */
     getY = CVAhermiteGetY;
     storePnt = CVAhermiteStorePnt;
+    /* Rename zn[0] and zn[1] for use in interpolation */
+    Y0 = zn[0];
+    Y1 = zn[1];
+    break;
+  case CV_POLYNOMIAL:
+    /* Allocate Data Points memory */
+    allocOK = CVApolynomialMalloc(ca_mem, steps);
+    if (!allocOK) {
+      for(i=0; i<=steps; i++) {free(ca_mem->dt_mem[i]); ca_mem->dt_mem[i] = NULL;}
+      free(ca_mem->dt_mem); ca_mem->dt_mem = NULL;
+      while (ca_mem->ck_mem != NULL) CVAckpntDelete(&(ca_mem->ck_mem));
+      CVAfreeVectors(ca_mem);
+      free(ca_mem); ca_mem = NULL;
+      CVProcessError(NULL, 0, "CVODEA", "CVadjMalloc", MSGAM_MEM_FAIL);
+      return(NULL);
+    }
+    /* Attach interpolation functions getY and storePnt */
+    getY = CVApolynomialGetY;
+    storePnt = CVApolynomialStorePnt;
+    /* Rename zn for use in interpolation */
+    for (i=0;i<L_MAX;i++) Y[i] = zn[i];
     break;
   }
 
@@ -283,19 +326,132 @@ void *CVadjMalloc(void *cvode_mem, long int steps)
   /* Initialize backward cvode memory to NULL */
   ca_mem->cvb_mem = NULL;
 
+  ca_mem->ca_lmemB = NULL;
+  ca_mem->ca_lfreeB = NULL;
+  ca_mem->ca_pmemB = NULL;
+  
   ca_mem->ca_f_dataB = NULL;
   ca_mem->ca_fQ_dataB = NULL;
-  ca_mem->ca_jac_dataB = NULL;
-  ca_mem->ca_P_dataB = NULL;
-  ca_mem->ca_bp_dataB = NULL;
-  ca_mem->ca_bbd_dataB = NULL;
-
-  ca_mem->ca_jtimesB = NULL;
-  ca_mem->ca_psetB = NULL;
-  ca_mem->ca_psolveB = NULL;
 
   return((void *)ca_mem);
 } 
+
+/* 
+ * CVadjSetInterpType
+ *
+ * Changes the interpolation type.
+ * Possible return values: CV_SUCCESS, CV_ADJMEM_NULL, CV_ILL_INPUT, CV_MEM_FAIL
+ */
+
+int CVadjSetInterpType(void *cvadj_mem, int interp)
+{
+  CVadjMem ca_mem;
+  CVodeMem cv_mem;
+  booleantype allocOK;
+  long int i;
+  
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVadjSetInterpType", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
+  ca_mem = (CVadjMem) cvadj_mem;
+
+  cv_mem = ca_mem->cv_mem;
+
+  if ( (interp != CV_HERMITE) && (interp != CV_POLYNOMIAL) ) {
+    CVProcessError(NULL, CV_ILL_INPUT, "CVODEA", "CVadjSetInterpType", MSGAM_BAD_INTERP);
+    return(CV_ILL_INPUT);
+  } 
+
+  if (interp == interpType) return(CV_SUCCESS);
+
+  interpType = interp;
+
+
+  switch (interpType) {
+
+  case CV_HERMITE:
+    /* Delete Data Points memory */
+    CVApolynomialFree(ca_mem->dt_mem, nsteps);
+    /* Allocate Data Points memory */
+    allocOK = CVAhermiteMalloc(ca_mem, nsteps);
+    if (!allocOK) {
+      CVProcessError(NULL, CV_MEM_FAIL, "CVODEA", "CVadjSetInterpType", MSGAM_MEM_FAIL);
+      return(CV_MEM_FAIL);
+    }
+    /* Attach interpolation functions getY and storePnt */
+    getY = CVAhermiteGetY;
+    storePnt = CVAhermiteStorePnt;
+    /* Rename zn[0] and zn[1] for use in interpolation */
+    Y0 = zn[0];
+    Y1 = zn[1];
+    break;
+  case CV_POLYNOMIAL:
+    /* Delete Data Points memory */
+    CVAhermiteFree(ca_mem->dt_mem, nsteps);
+    /* Allocate Data Points memory */
+    allocOK = CVApolynomialMalloc(ca_mem, nsteps);
+    if (!allocOK) {
+      CVProcessError(NULL, CV_MEM_FAIL, "CVODEA", "CVadjSetInterpType", MSGAM_MEM_FAIL);
+      return(CV_MEM_FAIL);
+    }
+    /* Attach interpolation functions getY and storePnt */
+    getY = CVApolynomialGetY;
+    storePnt = CVApolynomialStorePnt;
+    /* Rename zn for use in interpolation */
+    for (i=0;i<L_MAX;i++) Y[i] = zn[i];
+    break;
+  }
+
+  return(CV_SUCCESS);
+
+}
+
+/*
+ * CVadjFree
+ *
+ * This routine frees the memory allocated by CVadjMalloc.
+ */
+
+void CVadjFree(void **cvadj_mem)
+{
+  void *cvode_bmem;
+  CVadjMem ca_mem;
+  long int i;
+
+  if (*cvadj_mem == NULL) return;
+
+  ca_mem = (CVadjMem) (*cvadj_mem);
+
+  /* Delete check points one by one */
+  while (ca_mem->ck_mem != NULL) CVAckpntDelete(&(ca_mem->ck_mem));
+
+  /* Free vectors at each data point */
+  switch (interpType) {
+  case CV_HERMITE:
+    CVAhermiteFree(ca_mem->dt_mem, nsteps);
+    break;
+  case CV_POLYNOMIAL:
+    CVApolynomialFree(ca_mem->dt_mem, nsteps);
+    break;
+  }
+  for(i=0; i<=nsteps; i++) {free(ca_mem->dt_mem[i]); ca_mem->dt_mem[i] = NULL;}
+  free(ca_mem->dt_mem); ca_mem->dt_mem = NULL;
+
+  /* Free workspace vectors in ca_mem */
+  CVAfreeVectors(ca_mem);
+
+  /* Free memory allocated by the linear solver */
+  if (lfreeB != NULL) lfreeB(ca_mem);
+
+  /* Free CVODES memory for backward run */
+  cvode_bmem = (void *)ca_mem->cvb_mem;
+  CVodeFree(&cvode_bmem);
+
+  /* Free CVODEA memory */
+  free(*cvadj_mem);
+  *cvadj_mem = NULL;
+}
 
 /*
  * CVodeF
@@ -316,9 +472,12 @@ int CVodeF(void *cvadj_mem, realtype tout, N_Vector yout,
   CkpntMem tmp;
   DtpntMem *dt_mem;
   int cv_itask, flag;
-  booleantype iret, istop;
+  booleantype iret;
 
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVodeF", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
   ca_mem = (CVadjMem) cvadj_mem;
 
   cv_mem = ca_mem->cv_mem;
@@ -331,22 +490,18 @@ int CVodeF(void *cvadj_mem, realtype tout, N_Vector yout,
   switch (itask) {
   case CV_NORMAL:
     iret = FALSE;
-    istop = FALSE;
     cv_itask = CV_ONE_STEP;
     break;
   case CV_ONE_STEP:
     iret = TRUE;
-    istop = FALSE;
     cv_itask = CV_ONE_STEP;
     break;
   case CV_NORMAL_TSTOP:
     iret = FALSE;
-    istop = TRUE;
     cv_itask = CV_ONE_STEP_TSTOP;
     break;
   case CV_ONE_STEP_TSTOP:
     iret = TRUE;
-    istop = TRUE;
     cv_itask = CV_ONE_STEP_TSTOP;
     break;
   }
@@ -375,6 +530,7 @@ int CVodeF(void *cvadj_mem, realtype tout, N_Vector yout,
       /* Create a new check point, load it, and append it to the list */
       tmp = CVAckpntNew(cv_mem);
       if (tmp == NULL) {
+        CVProcessError(cv_mem, CV_MEM_FAIL, "CVODEA", "CVodeF", MSGAM_MEM_FAIL);
         flag = CV_MEM_FAIL;
         break;
       }
@@ -428,7 +584,7 @@ int CVodeF(void *cvadj_mem, realtype tout, N_Vector yout,
 }
 
 /*
- * CVodeCreateB, CVodeSet*B, CVodeMallocB, and CVodeReInitB
+ * CVodeCreateB, CVodeMallocB, and CVodeReInitB
  *
  * Wrappers for the backward phase around the corresponding 
  * CVODES functions
@@ -439,13 +595,17 @@ int CVodeCreateB(void *cvadj_mem, int lmmB, int iterB)
   CVadjMem ca_mem;
   void *cvode_mem;
 
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVodeCreateB", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
 
   ca_mem = (CVadjMem) cvadj_mem;
 
   cvode_mem = CVodeCreate(lmmB, iterB);
 
-  if (cvode_mem == NULL) return(CV_MEM_FAIL);
+  if (cvode_mem == NULL)
+    return(CV_MEM_FAIL);
 
   ca_mem->cvb_mem = (CVodeMem) cvode_mem;
 
@@ -453,157 +613,36 @@ int CVodeCreateB(void *cvadj_mem, int lmmB, int iterB)
 
 }
 
-int CVodeSetIterTypeB(void *cvadj_mem, int iterB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetIterType(cvode_mem, iterB);
-  
-  return(flag);
-}
-
-int CVodeSetFdataB(void *cvadj_mem, void *f_dataB)
-{
-  CVadjMem ca_mem;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  f_data_B = f_dataB;
-
-  return(CV_SUCCESS);
-}
-
-int CVodeSetErrFileB(void *cvadj_mem, FILE *errfpB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetErrFile(cvode_mem, errfpB);
-
-  return(flag);
-}
-
-int CVodeSetMaxOrdB(void *cvadj_mem, int maxordB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetMaxOrd(cvode_mem, maxordB);
-
-  return(flag);
-}
-
-
-int CVodeSetMaxNumStepsB(void *cvadj_mem, long int mxstepsB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetMaxNumSteps(cvode_mem, mxstepsB);
-
-  return(flag);
-}
-
-int CVodeSetStabLimDetB(void *cvadj_mem, booleantype stldetB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetStabLimDet(cvode_mem, stldetB);
-
-  return(flag);
-}
-
-int CVodeSetInitStepB(void *cvadj_mem, realtype hinB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetInitStep(cvode_mem, hinB);
-
-  return(flag);
-}
-
-int CVodeSetMinStepB(void *cvadj_mem, realtype hminB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetMinStep(cvode_mem, hminB);
-
-  return(flag);
-}
-
-int CVodeSetMaxStepB(void *cvadj_mem, realtype hmaxB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetMaxStep(cvode_mem, hmaxB);
-
-  return(flag);
-}
-
 int CVodeMallocB(void *cvadj_mem, CVRhsFnB fB, 
                  realtype tB0, N_Vector yB0,
                  int itolB, realtype reltolB, void *abstolB)
 {
   CVadjMem ca_mem;
-  void *cvode_mem;
+  CVodeMem cv_mem;
   int sign, flag;
 
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVodeMallocB", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
   ca_mem = (CVadjMem) cvadj_mem;
 
+  cv_mem = ca_mem->cvb_mem;
+
+  flag = CVodeMalloc(cv_mem, CVArhs, tB0, yB0,
+                     itolB, reltolB, abstolB);
+  if (flag != CV_SUCCESS) return(flag);
+
   sign = (tfinal - tinitial > ZERO) ? 1 : -1;
-  if ( (sign*(tB0-tinitial) < ZERO) || (sign*(tfinal-tB0) < ZERO) )
+  if ( (sign*(tB0-tinitial) < ZERO) || (sign*(tfinal-tB0) < ZERO) ) {
+    CVProcessError(cv_mem, CV_BAD_TB0, "CVODEA", "CVodeMallocB", MSGAM_BAD_TB0);
     return(CV_BAD_TB0);
+  }
 
   f_B = fB;
 
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVodeMalloc(cvode_mem, CVArhs, tB0, yB0,
-                     itolB, reltolB, abstolB);
-
-  if (flag != CV_SUCCESS) return(flag);
-
-  CVodeSetMaxHnilWarns(cvode_mem, -1);
-  CVodeSetFdata(cvode_mem, cvadj_mem);
+  CVodeSetMaxHnilWarns(cv_mem, -1);
+  CVodeSetFdata(cv_mem, cvadj_mem);
 
   return(CV_SUCCESS);
 
@@ -614,65 +653,43 @@ int CVodeReInitB(void *cvadj_mem, CVRhsFnB fB,
                  int itolB, realtype reltolB, void *abstolB)
 {
   CVadjMem ca_mem;
-  void *cvode_mem;
+  CVodeMem cv_mem;
   int sign, flag;
 
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVodeReInitB", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
   ca_mem = (CVadjMem) cvadj_mem;
 
-  sign = (tfinal - tinitial > ZERO) ? 1 : -1;
-  if ( (sign*(tB0-tinitial) < ZERO) || (sign*(tfinal-tB0) < ZERO) )
-    return(CV_BAD_TB0);
-  
-  f_B  = fB;
+  cv_mem = ca_mem->cvb_mem;
 
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVodeReInit(cvode_mem, CVArhs, tB0, yB0,
+  flag = CVodeReInit(cv_mem, CVArhs, tB0, yB0,
                      itolB, reltolB, abstolB);
 
   if (flag != CV_SUCCESS) return(flag);
 
-  CVodeSetMaxHnilWarns(cvode_mem, -1);
-  CVodeSetFdata(cvode_mem, cvadj_mem);
+  sign = (tfinal - tinitial > ZERO) ? 1 : -1;
+  if ( (sign*(tB0-tinitial) < ZERO) || (sign*(tfinal-tB0) < ZERO) ) {
+    CVProcessError(cv_mem, CV_BAD_TB0, "CVODEA", "CVodeReInitB", MSGAM_BAD_TB0);
+    return(CV_BAD_TB0);
+  }
+  
+  f_B  = fB;
+
+  CVodeSetMaxHnilWarns(cv_mem, -1);
+  CVodeSetFdata(cv_mem, cvadj_mem);
 
   return(CV_SUCCESS);
 
 }
 
 /*
- * CVodeSetQuad*B, CVodeQuadMallocB, and CVodeQuadReInitB
+ * CVodeQuadMallocB, and CVodeQuadReInitB
  *
  * Wrappers for the backward phase around the corresponding 
  * CVODES functions
  */
-
-int CVodeSetQuadFdataB(void *cvadj_mem, void *fQ_dataB)
-{
-  CVadjMem ca_mem;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  fQ_data_B = fQ_dataB;
-
-  return(CV_SUCCESS);
-}
-
-int CVodeSetQuadErrConB(void *cvadj_mem, booleantype errconQB,
-                        int itolQB, realtype reltolQB, void *abstolQB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *)ca_mem->cvb_mem;
-
-  flag = CVodeSetQuadErrCon(cvode_mem, errconQB, itolQB, reltolQB, abstolQB);
-
-  return(flag);
-}
 
 int CVodeQuadMallocB(void *cvadj_mem, CVQuadRhsFnB fQB, N_Vector yQB0)
 {
@@ -680,8 +697,10 @@ int CVodeQuadMallocB(void *cvadj_mem, CVQuadRhsFnB fQB, N_Vector yQB0)
   void *cvode_mem;
   int flag;
 
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVodeQuadMallocB", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
   ca_mem = (CVadjMem) cvadj_mem;
 
   fQ_B = fQB;
@@ -703,8 +722,10 @@ int CVodeQuadReInitB(void *cvadj_mem, CVQuadRhsFnB fQB, N_Vector yQB0)
   void *cvode_mem;
   int flag;
 
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVodeQuadReInitB", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
   ca_mem = (CVadjMem) cvadj_mem;
 
   fQ_B = fQB;
@@ -715,349 +736,6 @@ int CVodeQuadReInitB(void *cvadj_mem, CVQuadRhsFnB fQB, N_Vector yQB0)
 
   return(flag);
 
-}
-
-/*
- * CVDenseB and CVdenseSet*B
- *
- * Wrappers for the backward phase around the corresponding 
- * CVODES functions
- */
-
-int CVDenseB(void *cvadj_mem, long int nB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-  
-  flag = CVDense(cvode_mem, nB);
-
-  return(flag);
-}
-
-int CVDenseSetJacFnB(void *cvadj_mem, CVDenseJacFnB djacB, void *jac_dataB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  djac_B     = djacB;
-  jac_data_B = jac_dataB;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVDenseSetJacFn(cvode_mem, CVAdenseJac, cvadj_mem);
-
-  return(flag);
-}
-
-/*
- * CVDiagB
- *
- * Wrappers for the backward phase around the corresponding 
- * CVODES functions
- */
-
-int CVDiagB(void *cvadj_mem)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-  
-  flag = CVDiag(cvode_mem);
-
-  return(flag);
-}
-
-/*
- * CVBandB and CVBandSet*B
- *
- * Wrappers for the backward phase around the corresponding 
- * CVODES functions
- */
-
-int CVBandB(void *cvadj_mem, long int nB, 
-            long int mupperB, long int mlowerB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-  
-  flag = CVBand(cvode_mem, nB, mupperB, mlowerB);
-
-  return(flag);
-}
-
-int CVBandSetJacFnB(void *cvadj_mem, CVBandJacFnB bjacB, void *jac_dataB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  bjac_B     = bjacB;
-  jac_data_B = jac_dataB;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVBandSetJacFn(cvode_mem, CVAbandJac, cvadj_mem);
-
-  return(flag);
-}
-
-/*
- * CVSpgmrB and CVSpgmrSet*B
- *
- * Wrappers for the backward phase around the corresponding 
- * CVODES functions
- */
-
-int CVSpgmrB(void *cvadj_mem, int pretypeB, int maxlB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-  
-  flag = CVSpgmr(cvode_mem, pretypeB, maxlB);
-
-  return(flag);
-}
-
-int CVSpgmrSetPrecTypeB(void *cvadj_mem, int pretypeB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVSpgmrSetPrecType(cvode_mem, pretypeB);
-
-  return(flag);
-}
-
-int CVSpgmrSetGSTypeB(void *cvadj_mem, int gstypeB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVSpgmrSetGSType(cvode_mem,gstypeB);
-
-  return(flag);
-}
-
-int CVSpgmrSetDeltB(void *cvadj_mem, realtype deltB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVSpgmrSetDelt(cvode_mem,deltB);
-
-  return(flag);
-}
-
-int CVSpgmrSetPreconditionerB(void *cvadj_mem, CVSpgmrPrecSetupFnB psetB,
-                              CVSpgmrPrecSolveFnB psolveB, void *P_dataB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  pset_B   = psetB;
-  psolve_B = psolveB;
-  P_data_B = P_dataB;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVSpgmrSetPreconditioner(cvode_mem, CVAspilsPrecSetup, CVAspilsPrecSolve, cvadj_mem);
-
-  return(flag);
-}
-
-int CVSpgmrSetJacTimesVecFnB(void *cvadj_mem, CVSpgmrJacTimesVecFnB jtimesB,
-                             void *jac_dataB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  jtimes_B   = jtimesB;
-  jac_data_B = jac_dataB;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  flag = CVSpgmrSetJacTimesVecFn(cvode_mem, CVAspilsJacTimesVec, cvadj_mem);
-
-  return(flag);
-}
-
-/*
- * CVBandPrecAllocB, CVBPSpgmrB, CVBandPrecFreeB
- *
- * Wrappers for the backward phase around the corresponding 
- * CVODES functions
- */
-
-int CVBandPrecAllocB(void *cvadj_mem, long int nB, 
-                     long int muB, long int mlB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  void *bp_dataB;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  bp_dataB = CVBandPrecAlloc(cvode_mem, nB, muB, mlB);
-
-  if (bp_dataB == NULL) return(CV_PDATA_NULL);
-
-  bp_data_B = bp_dataB;
-
-  return(CV_SUCCESS);
-
-}
-
-int CVBPSpgmrB(void *cvadj_mem, int pretypeB, int maxlB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-  
-  flag = CVBPSpgmr(cvode_mem, pretypeB, maxlB, bp_data_B);
-
-  return(flag);
-}
-
-/*
- * CVBBDPrecAllocB, CVBPSpgmrB, CVBandPrecFreeB
- *
- * Wrappers for the backward phase around the corresponding 
- * CVODES functions
- */
-
-int CVBBDPrecAllocB(void *cvadj_mem, long int NlocalB, 
-                    long int mudqB, long int mldqB, 
-                    long int mukeepB, long int mlkeepB, 
-                    realtype dqrelyB,
-                    CVLocalFnB glocB, CVCommFnB cfnB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  void *bbd_dataB;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  gloc_B = glocB;
-  cfn_B  = cfnB;
-
-  bbd_dataB = CVBBDPrecAlloc(cvode_mem, NlocalB, 
-                             mudqB, mldqB,
-                             mukeepB, mlkeepB, 
-                             dqrelyB, 
-                             CVAgloc, CVAcfn);
-
-  if (bbd_dataB == NULL) return(CV_PDATA_NULL);
-
-  bbd_data_B = bbd_dataB;
-
-  return(CV_SUCCESS);
-
-}
-
-int CVBBDSpgmrB(void *cvadj_mem, int pretypeB, int maxlB)
-{
-
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-  
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-  
-  cvode_mem = (void *) ca_mem->cvb_mem;
-  
-  flag = CVBBDSpgmr(cvode_mem, pretypeB, maxlB, bbd_data_B);
-
-  return(flag);
-
-}
-
-int CVBBDPrecReInitB(void *cvadj_mem, long int mudqB, long int mldqB,
-                     realtype dqrelyB, CVLocalFnB glocB, CVCommFnB cfnB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-  
-  cvode_mem = (void *) ca_mem->cvb_mem;
-  
-  gloc_B = glocB;
-  cfn_B  = cfnB;
-
-  flag = CVBBDPrecReInit(bbd_data_B, mudqB, mldqB,
-                         dqrelyB, CVAgloc, CVAcfn);
-
-  return(flag);
 }
 
 /*
@@ -1078,25 +756,35 @@ int CVodeB(void *cvadj_mem, realtype tBout, N_Vector yBout,
   int sign, flag, cv_itask;
   realtype tBn;
   
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVodeB", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
   ca_mem  = (CVadjMem) cvadj_mem;
 
   cvb_mem = ca_mem->cvb_mem;
-  if (cvb_mem == NULL) return(CV_BCKMEM_NULL);
+  if (cvb_mem == NULL) {
+    CVProcessError(NULL, CV_BCKMEM_NULL, "CVODEA", "CVodeB", MSGAM_NULL_CVMEM);
+    return(CV_BCKMEM_NULL);
+  }
 
   if (itaskB == CV_NORMAL)
     cv_itask = CV_NORMAL_TSTOP;
   else if (itaskB == CV_ONE_STEP)
     cv_itask = CV_ONE_STEP_TSTOP;
-  else
+  else {
+    CVProcessError(cvb_mem, CV_BAD_ITASK, "CVODEA", "CVodeB", MSGAM_BAD_ITASKB);
     return(CV_BAD_ITASK);
+  }
 
   ck_mem = ca_mem->ck_mem;
 
   sign = (tfinal - tinitial > ZERO) ? 1 : -1;
 
-  if ( (sign*(tBout-tinitial) < ZERO) || (sign*(tfinal-tBout) < ZERO) )
+  if ( (sign*(tBout-tinitial) < ZERO) || (sign*(tfinal-tBout) < ZERO) ) {
+    CVProcessError(cvb_mem, CV_BAD_TBOUT, "CVODEA", "CVodeB", MSGAM_BAD_TBOUT);
     return(CV_BAD_TBOUT);
+  }
 
   tBn = cvb_mem->cv_tn;
   while ( sign*(tBn - t0_) <= ZERO ) ck_mem = next_;
@@ -1107,7 +795,8 @@ int CVodeB(void *cvadj_mem, realtype tBout, N_Vector yBout,
        This is the 2nd forward integration pass */
     if (ck_mem != ckpntData) {
       flag = CVAdataStore(ca_mem, ck_mem);
-      if (flag != CV_SUCCESS) return(flag);
+      if (flag != CV_SUCCESS)
+        return(flag); /* error message is sent from forward CVODES functions */
     }
 
     /* Backward integration */
@@ -1115,16 +804,19 @@ int CVodeB(void *cvadj_mem, realtype tBout, N_Vector yBout,
     flag = CVode(cvb_mem, tBout, yBout, tBret, cv_itask);
 
     /* If an error occured, return now */
-    if (flag < 0) return(flag);
+    if (flag < 0) 
+      return(flag); /* error message is sent from backward CVODES function */
 
     /* Set the time at which CVodeGetQuadB will evaluate any quadratures */
     t_for_quad = *tBret;
 
     /* If in CV_ONE_STEP mode, return now (flag=CV_SUCCESS or flag=CV_TSTOP_RETURN) */
-    if (itaskB == CV_ONE_STEP) return(flag);
+    if (itaskB == CV_ONE_STEP) 
+      return(flag);
 
     /* If succesfully reached tBout, return now */
-    if (*tBret == tBout) return(flag);
+    if (*tBret == tBout) 
+      return(flag);
 
     /* Move check point in linked list to next one */
     ck_mem = next_;
@@ -1134,201 +826,11 @@ int CVodeB(void *cvadj_mem, realtype tBout, N_Vector yBout,
   return(CV_SUCCESS);
 }
 
-/*
- * CVodeGetQuadB
+/* 
+ * =================================================================
+ * PRIVATE FUNCTIONS
+ * =================================================================
  */
-
-int CVodeGetQuadB(void *cvadj_mem, N_Vector qB)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  int flag;
-  
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem  = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *) ca_mem->cvb_mem;
-  
-  flag = CVodeGetQuad(cvode_mem, t_for_quad, qB);
-
-  return(flag);
-}
-
-/*
- * CVadjFree
- *
- * This routine frees the memory allocated by CVadjMalloc.
- */
-
-void CVadjFree(void *cvadj_mem)
-{
-  CVadjMem ca_mem;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  /* Delete check points one by one */
-  while (ca_mem->ck_mem != NULL) {
-    CVAckpntDelete(&(ca_mem->ck_mem));
-  }
-
-  /* Free vectors at each data point */
-  switch (interpType) {
-  case CV_HERMITE:
-    CVAhermiteFree(ca_mem->dt_mem, nsteps);
-    break;
-  }
-
-  free(ca_mem->dt_mem);
-
-  /* Free workspace vectors in ca_mem */
-  CVAfreeVectors(ca_mem);
-
-  /* Free CVODES memory for backward run */
-  CVodeFree(ca_mem->cvb_mem);
-
-  /* Free preconditioner data (the routines below check for non-NULL data) */
-  CVBandPrecFree(bp_data_B);
-  CVBBDPrecFree(bbd_data_B);
-
-  /* Free CVODEA memory */
-  free(ca_mem);
-}
-
-/*
- * CVadjGetCVodeBmem
- *
- * CVadjGetCVodeBmem returns a (void *) pointer to the CVODES     
- * memory allocated for the backward problem. This pointer can    
- * then be used to call any of the CVodeGet* CVODES routines to  
- * extract optional output for the backward integration phase.
- */
-
-void *CVadjGetCVodeBmem(void *cvadj_mem)
-{
-  CVadjMem ca_mem;
-  void *cvode_mem;
-  
-  if (cvadj_mem == NULL) return(NULL);
-  ca_mem  = (CVadjMem) cvadj_mem;
-  cvode_mem = (void *) ca_mem->cvb_mem;
-
-  return(cvode_mem);
-}
-
-/*=================================================================*/
-/*       UNDOCUMENTED development user-callable functions          */
-/*=================================================================*/
-
-
-/*
- * CVadjGetCheckPointsInfo
- *
- * This routine loads an array of nckpnts structures of type CheckPointRec.
- * The user must allocate space for ckpnt.
- */
-
-int CVadjGetCheckPointsInfo(void *cvadj_mem, CheckPointRec *ckpnt)
-{
-  CVadjMem ca_mem;
-  CkpntMem ck_mem;
-  int i;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-  ck_mem = ca_mem->ck_mem;
-  i = 0;
-
-  while (ck_mem != NULL) {
-
-    ckpnt[i].my_addr = (unsigned int) ck_mem;
-    ckpnt[i].next_addr = (unsigned int) next_;
-    ckpnt[i].t0 = t0_;
-    ckpnt[i].t1 = t1_;
-    ckpnt[i].nstep = nst_;
-    ckpnt[i].order = q_;
-    ckpnt[i].step = h_;
-
-    ck_mem = next_;
-    i++;
-
-  }
-
-  return(CV_SUCCESS);
-
-}
-
-/*
- * CVadjGetCurrentCheckPoint
- *
- *  Returns the address of the 'active' check point.
- */
-
-int CVadjGetCurrentCheckPoint(void *cvadj_mem, unsigned int *addr)
-{
-  CVadjMem ca_mem;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  *addr = (unsigned int) ckpntData;
-
-  return(CV_SUCCESS);
-}
-
-/*
- * CVadjGetDataPointHermite
- *
- * This routine returns the solution stored in the data structure
- * at the 'which' data point. Cubic Hermite interpolation.
- */
-
-int CVadjGetDataPointHermite(void *cvadj_mem, long int which, 
-                             realtype *t, N_Vector y, N_Vector yd)
-{
-  CVadjMem ca_mem;
-  DtpntMem *dt_mem;
-  HermiteDataMem content;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem = (CVadjMem) cvadj_mem;
-  dt_mem = ca_mem->dt_mem;
-
-  if (interpType != CV_HERMITE) return(CV_ILL_INPUT);
-
-  *t = dt_mem[which]->t;
-
-  content = (HermiteDataMem) (dt_mem[which]->content);
-
-  if (y != NULL)
-    N_VScale(ONE, content->y, y);
-
-  if (yd != NULL)
-    N_VScale(ONE, content->yd, yd);
-
-  return(CV_SUCCESS);
-}
-
-/*
- * CVadjGetY
- *
- * This routine returns the interpolated forward solution at time t.
- * The user must allocate space for y.
- */
-
-int CVadjGetY(void *cvadj_mem, realtype t, N_Vector y)
-{
-  CVadjMem ca_mem;
-
-  if (cvadj_mem == NULL) return(CV_ADJMEM_NULL);
-  ca_mem  = (CVadjMem) cvadj_mem;
-  
-  getY(ca_mem, t, y);
-
-  return(CV_SUCCESS);
-}
-
-/*=================================================================*/
-/*            Private Functions Implementation                     */
-/*=================================================================*/
 
 /*
  * CVAallocVectors
@@ -1338,26 +840,13 @@ int CVadjGetY(void *cvadj_mem, realtype t, N_Vector y)
 
 static booleantype CVAallocVectors(CVadjMem ca_mem)
 {
-
   CVodeMem cv_mem;
 
   cv_mem = ca_mem->cv_mem;
 
-  Y0 = N_VClone(tempv);
-  if (Y0 == NULL) {
-    return(FALSE);
-  }
-
-  Y1 = N_VClone(tempv);
-  if (Y1 == NULL) {
-    N_VDestroy(Y0);
-    return(FALSE);
-  }
-
+  ytmp = NULL;
   ytmp = N_VClone(tempv);
   if (ytmp == NULL) {
-    N_VDestroy(Y0);
-    N_VDestroy(Y1);
     return(FALSE);
   }
 
@@ -1373,8 +862,6 @@ static booleantype CVAallocVectors(CVadjMem ca_mem)
 
 static void CVAfreeVectors(CVadjMem ca_mem)
 {
-  N_VDestroy(Y0);
-  N_VDestroy(Y1);
   N_VDestroy(ytmp);
 }
 
@@ -1391,10 +878,24 @@ static CkpntMem CVAckpntInit(CVodeMem cv_mem)
   CkpntMem ck_mem;
 
   /* Allocate space for ckdata */
+  ck_mem = NULL;
   ck_mem = (CkpntMem) malloc(sizeof(struct CkpntMemRec));
+  if (ck_mem == NULL) return(NULL);
 
+  zn_[0] = NULL;
   zn_[0] = N_VClone(tempv);
+  if (zn_[0] == NULL) {
+    free(ck_mem); ck_mem = NULL;
+    return(NULL);
+  }
+  
+  zn_[1] = NULL;
   zn_[1] = N_VClone(tempv);
+  if (zn_[1] == NULL) {
+    N_VDestroy(zn_[0]);
+    free(ck_mem); ck_mem = NULL;
+    return(NULL);
+  }
 
   /* zn_[qmax] was not allocated */
   zqm_ = 0;
@@ -1410,7 +911,14 @@ static CkpntMem CVAckpntInit(CVodeMem cv_mem)
   quadr_ = quadr && errconQ;
 
   if (quadr_) {
+    znQ_[0] = NULL;
     znQ_[0] = N_VClone(tempvQ);
+    if (znQ_[0] == NULL) {
+      N_VDestroy(zn_[0]);
+      N_VDestroy(zn_[1]);
+      free(ck_mem); ck_mem = NULL;
+      return(NULL);
+    }
     N_VScale(ONE, znQ[0], znQ_[0]);
   }
 
@@ -1430,10 +938,11 @@ static CkpntMem CVAckpntInit(CVodeMem cv_mem)
 static CkpntMem CVAckpntNew(CVodeMem cv_mem)
 {
   CkpntMem ck_mem;
-  int j;
+  int j, jj;
   int qmax; 
 
   /* Allocate space for ckdata */
+  ck_mem = NULL;
   ck_mem = (CkpntMem) malloc(sizeof(struct CkpntMemRec));
   if (ck_mem == NULL) return(NULL);
 
@@ -1445,27 +954,52 @@ static CkpntMem CVAckpntNew(CVodeMem cv_mem)
   zqm_ = (q < qmax) ? qmax : 0;
 
   for (j=0; j<=q; j++) {
+    zn_[j] = NULL;
     zn_[j] = N_VClone(tempv);
-    if(zn_[j] == NULL) return(NULL);
+    if (zn_[j] == NULL) {
+      for (jj=0; jj<j; jj++) N_VDestroy(zn_[jj]);
+      free(ck_mem); ck_mem = NULL;
+      return(NULL);
+    }
   }
 
-  if ( q < qmax) {
+  if (q < qmax) {
+    zn_[qmax] = NULL;
     zn_[qmax] = N_VClone(tempv);
-    if ( zn_[qmax] == NULL ) return(NULL);
+    if (zn_[qmax] == NULL) {
+      for (j=0; j<=q; j++) N_VDestroy(zn_[j]);
+      free(ck_mem); ck_mem = NULL;
+      return(NULL);
+    }
   }
 
   /* Test if we need to carry quadratures */
   quadr_ = quadr && errconQ;
 
   if (quadr_) {
+
     for (j=0; j<=q; j++) {
+      znQ_[j] = NULL;
       znQ_[j] = N_VClone(tempvQ);
-      if(znQ_[j] == NULL) return(NULL);
+      if(znQ_[j] == NULL) {
+        for (jj=0; jj<j; jj++) N_VDestroy(znQ_[jj]);
+        if (q < qmax) N_VDestroy(zn_[qmax]);
+        for (j=0; j<=q; j++) N_VDestroy(zn_[j]);
+        free(ck_mem); ck_mem = NULL;
+        return(NULL);
+      }
     }
 
     if ( q < qmax) {
+      znQ_[qmax] = NULL;
       znQ_[qmax] = N_VClone(tempvQ);
-      if ( znQ_[qmax] == NULL ) return(NULL);
+      if (znQ_[qmax] == NULL) {
+        for (j=0; j<=q; j++) N_VDestroy(znQ_[j]);
+        N_VDestroy(zn_[qmax]);
+        for (j=0; j<=q; j++) N_VDestroy(zn_[j]);
+        free(ck_mem); ck_mem = NULL;
+        return(NULL);
+      }
     }
   }
 
@@ -1524,8 +1058,8 @@ static void CVAckpntDelete(CkpntMem *ck_memPtr)
     if (tmp->ck_zqm != 0) N_VDestroy(tmp->ck_zn[tmp->ck_zqm]);
 
     /* free N_Vectors for quadratures in tmp 
-     Note that at the check point at t_initial, only znQ_[0] 
-     was allocated*/
+       Note that at the check point at t_initial, only znQ_[0] 
+       was allocated*/
     if(tmp->ck_quadr) {
       if(tmp->ck_next != NULL) {
         for (j=0;j<=tmp->ck_q;j++) N_VDestroy(tmp->ck_znQ[j]);
@@ -1535,7 +1069,7 @@ static void CVAckpntDelete(CkpntMem *ck_memPtr)
       }
     }
 
-    free(tmp);
+    free(tmp); tmp = NULL;
 
   }
 }
@@ -1565,7 +1099,8 @@ int CVAdataStore(CVadjMem ca_mem, CkpntMem ck_mem)
 
   /* Initialize cv_mem with data from ck_mem */
   flag = CVAckpntGet(cv_mem, ck_mem);
-  if (flag != CV_SUCCESS) return(CV_REIFWD_FAIL);
+  if (flag != CV_SUCCESS)
+    return(CV_REIFWD_FAIL);
 
   /* Set first structure in dt_mem[0] */
   dt_mem[0]->t = t0_;
@@ -1576,16 +1111,17 @@ int CVAdataStore(CVadjMem ca_mem, CkpntMem ck_mem)
   i = 1;
   do {
     flag = CVode(cv_mem, t1_, ytmp, &t, CV_ONE_STEP);
-    if (flag < 0) return(CV_FWD_FAIL);
+    if (flag < 0) 
+      return(CV_FWD_FAIL);
     dt_mem[i]->t = t;
     storePnt(cv_mem, dt_mem[i]);
     i++;
   } while (t<t1_);
 
-  /* New data is now available */
-  ckpntData = ck_mem;
-  newData = TRUE;
-  np  = i;
+
+  newData = TRUE;       /* New data is now available    */
+  ckpntData = ck_mem;   /* starting at this check point */
+  np = i;               /* and we have this many points */
 
   return(CV_SUCCESS);
 }
@@ -1593,7 +1129,7 @@ int CVAdataStore(CVadjMem ca_mem, CkpntMem ck_mem)
 /*
  * CVAckpntGet
  *
- * This routine prepares CVODE for a hot restart from
+ * This routine prepares CVODES for a hot restart from
  * the check point ck_mem
  */
 
@@ -1672,9 +1208,127 @@ static int CVAckpntGet(CVodeMem cv_mem, CkpntMem ck_mem)
   return(CV_SUCCESS);
 }
 
-/*=================================================================*/
-/*        Functions for cubic Hermite interpolation                */
-/*=================================================================*/
+/* 
+ * -----------------------------------------------------------------
+ * Functions for interpolation
+ * -----------------------------------------------------------------
+ */
+
+/*
+ * CVAfindIndex
+ *
+ * Finds the index in the array of data point strctures such that
+ *     dt_mem[indx-1].t <= t < dt_mem[indx].t
+ * If indx is changed from the previous invocation, then newpoint = TRUE
+ *
+ * If t is beyond the leftmost limit, but close enough, indx=0.
+ *
+ * Returns CV_SUCCESS if successful and CV_GETY_BADT if unable to
+ * find indx (t is too far beyond limits).
+ */
+
+static int CVAfindIndex(CVadjMem ca_mem, realtype t, 
+                        long int *indx, booleantype *newpoint)
+{
+  static long int ilast;
+  DtpntMem *dt_mem;
+  int sign;
+  booleantype to_left, to_right;
+
+  dt_mem = ca_mem->dt_mem;
+
+  *newpoint = FALSE;
+
+  /* Find the direction of integration */
+  sign = (tfinal - tinitial > ZERO) ? 1 : -1;
+
+  /* If this is the first time we use new data */
+  if (newData) {
+    ilast     = np-1;
+    *newpoint = TRUE;
+    newData   = FALSE;
+  }
+
+  /* Search for indx starting from ilast */
+  to_left  = ( sign*(t - dt_mem[ilast-1]->t) < ZERO);
+  to_right = ( sign*(t - dt_mem[ilast]->t)   > ZERO);
+
+  if ( to_left ) {
+    /* look for a new indx to the left */
+
+    *newpoint = TRUE;
+    
+    *indx = ilast;
+    loop {
+      if ( *indx == 0 ) break;
+      if ( sign*(t - dt_mem[*indx-1]->t) <= ZERO ) (*indx)--;
+      else                                         break;
+    }
+
+    if ( *indx == 0 )
+      ilast = 1;
+    else
+      ilast = *indx;
+
+    if ( *indx == 0 ) {
+      /* t is beyond leftmost limit. Is it too far? */  
+      if ( ABS(t - dt_mem[0]->t) > FUZZ_FACTOR * uround ) return(CV_GETY_BADT);
+    }
+
+  } else if ( to_right ) {
+    /* look for a new indx to the right */
+
+    *newpoint = TRUE;
+
+    *indx = ilast;
+    loop {
+      if ( sign*(t - dt_mem[*indx]->t) > ZERO) (*indx)++;
+      else                                     break;
+    }
+
+    ilast = *indx;
+
+
+  } else {
+    /* ilast is still OK */
+
+    *indx = ilast;
+
+  }
+
+  return(CV_SUCCESS);
+
+
+}
+
+/*
+ * CVadjGetY
+ *
+ * This routine returns the interpolated forward solution at time t.
+ * The user must allocate space for y.
+ */
+
+int CVadjGetY(void *cvadj_mem, realtype t, N_Vector y)
+{
+  int flag;
+  CVadjMem ca_mem;
+
+  if (cvadj_mem == NULL) {
+    CVProcessError(NULL, CV_ADJMEM_NULL, "CVODEA", "CVadjGetY", MSGAM_NULL_CAMEM);
+    return(CV_ADJMEM_NULL);
+  }
+  ca_mem  = (CVadjMem) cvadj_mem;
+  
+  flag = getY(ca_mem, t, y);
+
+  return(flag);
+}
+
+/* 
+ * -----------------------------------------------------------------
+ * Functions specific to cubic Hermite interpolation
+ * -----------------------------------------------------------------
+ */
 
 /*
  * CVAhermiteMalloc
@@ -1685,29 +1339,68 @@ static int CVAckpntGet(CVodeMem cv_mem, CkpntMem ck_mem)
  * at any other time.
  */
 
-static DtpntMem *CVAhermiteMalloc(CVodeMem cv_mem, long int steps)
+static booleantype CVAhermiteMalloc(CVadjMem ca_mem, long int steps)
 {
+  CVodeMem cv_mem;
   DtpntMem *dt_mem;
   HermiteDataMem content;
-  long int i;
+  long int i, ii=0;
+  booleantype allocOK;
 
-  dt_mem = (DtpntMem *) malloc((steps+1)*sizeof(struct DtpntMemRec *));
+  allocOK = TRUE;
+
+  dt_mem = ca_mem->dt_mem;
+  cv_mem = ca_mem->cv_mem;
 
   for (i=0; i<=steps; i++) {
-    dt_mem[i] = (DtpntMem) malloc(sizeof(struct DtpntMemRec));
-    content   = (HermiteDataMem) malloc(sizeof(struct HermiteDataMemRec));
-    content->y  = N_VClone(tempv);
+
+    content = NULL;
+    content = (HermiteDataMem) malloc(sizeof(struct HermiteDataMemRec));
+    if (content == NULL) {
+      ii = i;
+      allocOK = FALSE;
+      break;
+    }
+
+    content->y = NULL;
+    content->y = N_VClone(tempv);
+    if (content->y == NULL) {
+      free(content); content = NULL;
+      ii = i;
+      allocOK = FALSE;
+      break;
+    }
+
+    content->yd = NULL;
     content->yd = N_VClone(tempv);
+    if (content->yd == NULL) {
+      N_VDestroy(content->y);
+      free(content); content = NULL;
+      ii = i;
+      allocOK = FALSE;
+      break;
+    }
+    
     dt_mem[i]->content = content;
+
   } 
 
-  return(dt_mem);
+  if (!allocOK) {
+    for (i=0; i<ii; i++) {
+      content = (HermiteDataMem) (dt_mem[i]->content);
+      N_VDestroy(content->y);
+      N_VDestroy(content->yd);
+      free(dt_mem[i]->content); dt_mem[i]->content = NULL;
+    }
+  }
+
+  return(allocOK);
 }
 
 /*
  * CVAhermiteFree
  *
- * This routine frees the memeory allocated for data storage.
+ * This routine frees the memory allocated for data storage.
  */
 
 static void CVAhermiteFree(DtpntMem *dt_mem, long int steps)
@@ -1719,13 +1412,12 @@ static void CVAhermiteFree(DtpntMem *dt_mem, long int steps)
     content = (HermiteDataMem) (dt_mem[i]->content);
     N_VDestroy(content->y);
     N_VDestroy(content->yd);
-    free(dt_mem[i]->content);
-    free(dt_mem[i]);
+    free(dt_mem[i]->content); dt_mem[i]->content = NULL;
   }
 }
 
 /*
- * CVAhermiteStorePnt
+ * CVAhermiteStorePnt ( -> storePnt )
  *
  * This routine stores a new point (y,yd) in the structure d for use
  * in the cubic Hermite interpolation.
@@ -1734,6 +1426,7 @@ static void CVAhermiteFree(DtpntMem *dt_mem, long int steps)
 
 static int CVAhermiteStorePnt(CVodeMem cv_mem, DtpntMem d)
 {
+  int retval;
   HermiteDataMem content;
 
   content = (HermiteDataMem) d->content;
@@ -1741,7 +1434,7 @@ static int CVAhermiteStorePnt(CVodeMem cv_mem, DtpntMem d)
   N_VScale(ONE, zn[0], content->y);
   
   if (nst == 0)
-    f(tn, content->y, content->yd, f_data);
+    retval = f(tn, content->y, content->yd, f_data);
   else
     N_VScale(ONE/h, zn[1], content->yd);
 
@@ -1749,55 +1442,67 @@ static int CVAhermiteStorePnt(CVodeMem cv_mem, DtpntMem d)
 }
 
 /*
- * CVAhermitePrepare
+ * CVAhermiteGetY ( -> getY )
  *
- * This routine computes quantities required by the Hermite
- * interpolation that are independent of the interpolation point.
+ * This routine uses cubic piece-wise Hermite interpolation for 
+ * the forward solution vector. 
+ * It is typically called by the wrapper routines before calling
+ * user provided routines (fB, djacB, bjacB, jtimesB, psolB) but
+ * can be directly called by the user through CVadjGetY
  */
 
-static void CVAhermitePrepare(CVadjMem ca_mem, DtpntMem *dt_mem, long int i)
+static int CVAhermiteGetY(CVadjMem ca_mem, realtype t, N_Vector y)
 {
-  realtype t0, t1; 
+  DtpntMem *dt_mem;
   HermiteDataMem content0, content1;
-  N_Vector y0, y1, yd0, yd1;
+  realtype t0, t1, delta, factor;
+  N_Vector y0, yd0, y1, yd1;
+  int flag;
+  long int indx;
+  booleantype newpoint;
 
-  t0  = dt_mem[i-1]->t;
-  content0 = (HermiteDataMem) (dt_mem[i-1]->content);
-  y0  = content0->y;
-  yd0 = content0->yd;
+  dt_mem = ca_mem->dt_mem;
+  
+  /* Get the index in dt_mem */
 
-  t1  = dt_mem[i]->t;
-  content1 = (HermiteDataMem) (dt_mem[i]->content);
-  y1  = content1->y;
-  yd1 = content1->yd;
+  flag = CVAfindIndex(ca_mem, t, &indx, &newpoint);
+  if (flag != CV_SUCCESS) return(flag);
 
+  /* If we are beyond the left limit but close enough,
+     then return y at the left limit. */
+
+  if (indx == 0) {
+    content0 = (HermiteDataMem) (dt_mem[0]->content);
+    N_VScale(ONE, content0->y, y);
+    return(CV_SUCCESS);
+  }
+
+  /* Extract stuff from the appropriate data points */
+
+  t0 = dt_mem[indx-1]->t;
+  t1 = dt_mem[indx]->t;
   delta = t1 - t0;
 
-  N_VLinearSum(ONE, y1, -ONE, y0, Y0);
-  N_VLinearSum(ONE, yd1,  ONE, yd0, Y1);
-  N_VLinearSum(delta, Y1, -TWO, Y0, Y1);
-  N_VLinearSum(ONE, Y0, -delta, yd0, Y0);
-}
-
-/*
- * CVAhermiteInterpolate
- *
- * This routine performs the Hermite interpolation.
- */
-
-static void CVAhermiteInterpolate(CVadjMem ca_mem, DtpntMem *dt_mem,
-                                  long int i, realtype t, N_Vector y)
-{
-  realtype t0, t1;
-  HermiteDataMem content0;
-  N_Vector y0, yd0;
-  realtype factor;
-
-  t0  = dt_mem[i-1]->t;
-  t1  = dt_mem[i]->t;
-  content0 = (HermiteDataMem) (dt_mem[i-1]->content);
+  content0 = (HermiteDataMem) (dt_mem[indx-1]->content);
   y0  = content0->y;
   yd0 = content0->yd;
+
+  if (newpoint) {
+    
+    /* Recompute Y0 and Y1 */
+
+    content1 = (HermiteDataMem) (dt_mem[indx]->content);
+    y1  = content1->y;
+    yd1 = content1->yd;
+
+    N_VLinearSum(ONE, y1, -ONE, y0, Y0);
+    N_VLinearSum(ONE, yd1,  ONE, yd0, Y1);
+    N_VLinearSum(delta, Y1, -TWO, Y0, Y1);
+    N_VLinearSum(ONE, Y0, -delta, yd0, Y0);
+
+  }
+
+  /* Perform the actual interpolation. */
 
   factor = t - t0;
   N_VLinearSum(ONE, y0, factor, yd0, y);
@@ -1808,90 +1513,211 @@ static void CVAhermiteInterpolate(CVadjMem ca_mem, DtpntMem *dt_mem,
 
   factor = factor*(t-t1)/delta;
   N_VLinearSum(ONE, y, factor, Y1, y);
-}
-
-/*
- * CVAhermiteGetY
- *
- * This routine uses cubic piece-wise Hermite interpolation for 
- * the forward solution vector. 
- * It is typically called by the wrapper routines before calling
- * user provided routines (fB, djacB, bjacB, jtimesB, psolB) but
- * can be directly called by the user through CVadjGetY
-*/
-
-static int CVAhermiteGetY(CVadjMem ca_mem, realtype t, N_Vector y)
-{
-  DtpntMem *dt_mem;
-  HermiteDataMem content;
-  static long int i;
-  long int inew;
-  int sign;
-  booleantype to_left, to_right;
-  realtype troundoff;
-
-  dt_mem = ca_mem->dt_mem;
-
-  sign = (tfinal - tinitial > ZERO) ? 1 : -1;
-
-  if ( newData ) {
-    i = np-1;
-    CVAhermitePrepare(ca_mem, dt_mem, i); 
-    newData = FALSE;
-  }
-
-  /* Search for inew starting from last i */ 
-  to_left  = ( sign*(t - dt_mem[i-1]->t) < ZERO);
-  to_right = ( sign*(t - dt_mem[i]->t)   > ZERO);
-  
-  /* Test if t is beyond left limit */
-  if ( (to_left) && (i==1) ) {
-    /*troundoff = FUZZ_FACTOR*uround*(ABS(dt_mem[0]->t)+ABS(dt_mem[1]->t));*/
-    troundoff = FUZZ_FACTOR*uround;
-    if ( ABS(t - dt_mem[0]->t) <= troundoff ) {
-      content = (HermiteDataMem) (dt_mem[0]->content);
-      N_VScale(ONE, content->y, y);
-      return(CV_SUCCESS);
-    }
-    else {
-      return(CV_GETY_BADT);
-    }
-  }
-
-  inew = i;
-  if ( to_left ) {
-    /* Search to the left */
-    inew--;
-    loop {
-      if ( inew == 1 ) break;
-      if ( sign*(t - dt_mem[inew-1]->t) <= ZERO) inew--;
-      else                                       break;
-    }
-  } else if ( to_right ) {
-    /* Search to the right */
-    inew++;
-    loop {
-      if ( sign*(t - dt_mem[inew]->t) > ZERO) inew++;
-      else                                    break;
-    }
-  }
-  
-  if ( inew != i )
-    CVAhermitePrepare(ca_mem, dt_mem, inew);
-
-  CVAhermiteInterpolate(ca_mem, dt_mem, inew, t, y);
-
-  i = inew;
 
   return(CV_SUCCESS);
 }
 
+/* 
+ * -----------------------------------------------------------------
+ * Functions specific to Polynomial interpolation
+ * -----------------------------------------------------------------
+ */
 
+/*
+ * CVApolynomialMalloc
+ *
+ * This routine allocates memory for storing information at all
+ * intermediate points between two consecutive check points. 
+ * This data is then used to interpolate the forward solution 
+ * at any other time.
+ */
 
-/*=================================================================*/
-/*             Wrappers for adjoint system                         */
-/*=================================================================*/
+static booleantype CVApolynomialMalloc(CVadjMem ca_mem, long int steps)
+{
+  CVodeMem cv_mem;
+  DtpntMem *dt_mem;
+  PolynomialDataMem content;
+  long int i, ii=0;
+  booleantype allocOK;
 
+  allocOK = TRUE;
+
+  dt_mem = ca_mem->dt_mem;
+  cv_mem = ca_mem->cv_mem;
+
+  for (i=0; i<=steps; i++) {
+    content = NULL;
+    content = (PolynomialDataMem) malloc(sizeof(struct PolynomialDataMemRec));
+    if (content == NULL) {
+      ii = i;
+      allocOK = FALSE;
+      break;
+    }
+
+    content->y = NULL;
+    content->y = N_VClone(tempv);
+    if (content->y == NULL) {
+      free(content); content = NULL;
+      ii = i;
+      allocOK = FALSE;
+      break;
+    }
+
+    dt_mem[i]->content = content;
+  } 
+
+  if (!allocOK) {
+    for (i=0; i<ii; i++) {
+      content = (PolynomialDataMem) (dt_mem[i]->content);
+      N_VDestroy(content->y);
+      free(dt_mem[i]->content); dt_mem[i]->content = NULL;
+    }
+  }
+
+  return(allocOK);
+
+}
+
+/*
+ * CVApolynomialFree
+ *
+ * This routine frees the memeory allocated for data storage.
+ */
+
+static void CVApolynomialFree(DtpntMem *dt_mem, long int steps)
+{
+  long int i;
+  PolynomialDataMem content;
+
+  for (i=0; i<=steps; i++) {
+    content = (PolynomialDataMem) (dt_mem[i]->content);
+    N_VDestroy(content->y);
+    free(dt_mem[i]->content); dt_mem[i]->content = NULL;
+  }
+}
+
+/*
+ * CVApolynomialStorePnt ( -> storePnt )
+ *
+ * This routine stores a new point y in the structure d for use
+ * in the Polynomial interpolation.
+ * Note that the time is already stored.
+ */
+
+static int CVApolynomialStorePnt(CVodeMem cv_mem, DtpntMem d)
+{
+  PolynomialDataMem content;
+
+  content = (PolynomialDataMem) d->content;
+
+  N_VScale(ONE, zn[0], content->y);
+  content->order = qu;
+
+  return(0);
+}
+
+/*
+ * CVApolynomialGetY ( -> getY )
+ *
+ * This routine uses polynomial interpolation for the forward solution vector. 
+ * It is typically called by the wrapper routines before calling
+ * user provided routines (fB, djacB, bjacB, jtimesB, psolB)) but
+ * can be directly called by the user through CVadjGetY.
+ */
+
+static int CVApolynomialGetY(CVadjMem ca_mem, realtype t, N_Vector y)
+{
+  DtpntMem *dt_mem;
+  PolynomialDataMem content;
+  int flag, dir, order, i, j;
+  long int indx, base;
+  booleantype newpoint;
+  realtype dt, factor;
+
+  dt_mem = ca_mem->dt_mem;
+  
+  /* Get the index in dt_mem */
+
+  flag = CVAfindIndex(ca_mem, t, &indx, &newpoint);
+  if (flag != CV_SUCCESS) return(flag);
+
+  /* If we are beyond the left limit but close enough,
+     then return y at the left limit. */
+
+  if (indx == 0) {
+    content = (PolynomialDataMem) (dt_mem[0]->content);
+    N_VScale(ONE, content->y, y);
+    return(CV_SUCCESS);
+  }
+
+  /* Scaling factor */
+
+  dt = ABS(dt_mem[indx]->t - dt_mem[indx-1]->t);
+
+  /* Find the direction of the forward integration */
+
+  dir = (tfinal - tinitial > ZERO) ? 1 : -1;
+
+  /* Establish the base point depending on the integration direction.
+     Modify the base if there are not enough points for the current order */
+
+  if (dir == 1) {
+    base = indx;
+    content = (PolynomialDataMem) (dt_mem[base]->content);
+    order = content->order;
+    if(indx < order) base += order-indx;
+  } else {
+    base = indx-1;
+    content = (PolynomialDataMem) (dt_mem[base]->content);
+    order = content->order;
+    if (np-indx > order) base -= indx+order-np;
+  }
+
+  /* Recompute Y (divided differences for Newton polynomial) if needed */
+
+  if (newpoint) {
+
+    /* Store 0-th order DD */
+    if (dir == 1) {
+      for(j=0;j<=order;j++) {
+        T[j] = dt_mem[base-j]->t;
+        content = (PolynomialDataMem) (dt_mem[base-j]->content);
+        N_VScale(ONE, content->y, Y[j]);
+      }
+    } else {
+      for(j=0;j<=order;j++) {
+        T[j] = dt_mem[base-1+j]->t;
+        content = (PolynomialDataMem) (dt_mem[base-1+j]->content);
+        N_VScale(ONE, content->y, Y[j]);
+      }
+    }
+
+    /* Compute higher-order DD */
+    for(i=1;i<=order;i++) {
+      for(j=order;j>=i;j--) {
+        factor = dt/(T[j]-T[j-i]);
+        N_VLinearSum(factor, Y[j], -factor, Y[j-1], Y[j]);
+      }
+    }
+  }
+
+  /* Perform the actual interpolation using nested multiplications */
+
+  N_VScale(ONE, Y[order], y);
+  for (i=order-1; i>=0; i--) {
+    factor = (t-T[i])/dt;
+    N_VLinearSum(factor, y, ONE, Y[i], y);
+  }
+
+  return(CV_SUCCESS);
+
+}
+
+/* 
+ * =================================================================
+ * WRAPPERS FOR ADJOINT SYSTEM
+ * =================================================================
+ */
 /*
  * CVArhs
  *
@@ -1900,23 +1726,27 @@ static int CVAhermiteGetY(CVadjMem ca_mem, realtype t, N_Vector y)
  * NOTE: f_data actually contains cvadj_mem
  */
 
-static void CVArhs(realtype t, N_Vector yB, 
-                   N_Vector yBdot, void *cvadj_mem)
+static int CVArhs(realtype t, N_Vector yB, 
+                  N_Vector yBdot, void *cvadj_mem)
 {
   CVadjMem ca_mem;
-  int flag;
+  CVodeMem cv_mem;
+  int flag, retval;
 
   ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = ca_mem->cvb_mem;
 
-  /* Forward solution from Hermite interpolation */
+  /* Forward solution from interpolation */
   flag = getY(ca_mem, t, ytmp);
   if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
+    CVProcessError(cv_mem, -1, "CVODEA", "CVArhs", MSGAM_BAD_T);
+    return(-1);
   }
 
   /* Call user's adjoint RHS routine */
-  f_B(t, ytmp, yB, yBdot, f_data_B);
+  retval = f_B(t, ytmp, yB, yBdot, f_data_B);
+
+  return(retval);
 }
 
 /*
@@ -1927,233 +1757,28 @@ static void CVArhs(realtype t, N_Vector yB,
  * NOTE: fQ_data actually contains cvadj_mem
  */
 
-static void CVArhsQ(realtype t, N_Vector yB, 
-                    N_Vector qBdot, void *cvadj_mem)
+static int CVArhsQ(realtype t, N_Vector yB, 
+                   N_Vector qBdot, void *cvadj_mem)
 {
   CVadjMem ca_mem;
-  int flag;
+  CVodeMem cv_mem;
+  int flag, retval;
 
   ca_mem = (CVadjMem) cvadj_mem;
+  cv_mem = ca_mem->cvb_mem;
 
-  /* Forward solution from Hermite interpolation */
+  /* Forward solution from interpolation */
   flag = getY(ca_mem, t, ytmp);
   if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
+    CVProcessError(cv_mem, -1, "CVODEA", "CVArhsQ", MSGAM_BAD_T);
+    return(-1);
   }
 
   /* Call user's adjoint RHS routine */
-  fQ_B(t, ytmp, yB, qBdot, fQ_data_B);
+  retval = fQ_B(t, ytmp, yB, qBdot, fQ_data_B);
+
+  return(retval);
 }
 
-/*
- * CVAdenseJac
- *
- * This routine interfaces to the CVDenseJacFnB routine provided 
- * by the user.
- * NOTE: jac_data actually contains cvadj_mem
- */
 
-static void CVAdenseJac(long int nB, DenseMat JB, realtype t, 
-                        N_Vector yB, N_Vector fyB, void *cvadj_mem,
-                        N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B)
-{
-  CVadjMem ca_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  /* Forward solution from Hermite interpolation */
-  flag = getY(ca_mem, t, ytmp);
-  if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
-  }
-
-  /* Call user's adjoint dense djacB routine */
-  djac_B(nB, JB, t, ytmp, yB, fyB, jac_data_B, 
-         tmp1B, tmp2B, tmp3B);
-
-}
-
-/*
- * CVAbandJac
- *
- * This routine interfaces to the CVBandJacFnB routine provided 
- * by the user.
- * NOTE: jac_data actually contains cvadj_mem
- */
-
-static void CVAbandJac(long int nB, long int mupperB, 
-                       long int mlowerB, BandMat JB, realtype t, 
-                       N_Vector yB, N_Vector fyB, void *cvadj_mem, 
-                       N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B)
-{
-  CVadjMem ca_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  /* Forward solution from Hermite interpolation */
-  flag = getY(ca_mem, t, ytmp);
-  if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
-  }
-
-  /* Call user's adjoint band bjacB routine */
-  bjac_B(nB, mupperB, mlowerB, JB, t, ytmp, yB, fyB, jac_data_B,
-         tmp1B, tmp2B, tmp3B);
-}
-
-/*
- * CVAspilsPrecSetup
- *
- * This routine interfaces to the CVSpgmrPrecSetupFnB routine 
- * provided by the user.
- * NOTE: p_data actually contains cvadj_mem
- */
-
-static int CVAspilsPrecSetup(realtype t, N_Vector yB, 
-                             N_Vector fyB, booleantype jokB, 
-                             booleantype *jcurPtrB, realtype gammaB,
-                             void *cvadj_mem,
-                             N_Vector tmp1B, N_Vector tmp2B, N_Vector tmp3B)
-{
-  CVadjMem ca_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  /* Forward solution from Hermite interpolation */
-  flag = getY(ca_mem, t, ytmp);
-  if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
-  } 
-
-  /* Call user's adjoint precondB routine */
-  flag = pset_B(t, ytmp, yB, fyB, jokB, jcurPtrB, gammaB,
-                P_data_B, tmp1B, tmp2B, tmp3B);
-
-  return(flag);
-}
-
-/*
- * CVAspilsPrecSolve
- *
- * This routine interfaces to the CVSpgmrPrecSolveFnB routine 
- * provided by the user.
- * NOTE: p_data actually contains cvadj_mem
- */
-
-static int CVAspilsPrecSolve(realtype t, N_Vector yB, N_Vector fyB,
-                             N_Vector rB, N_Vector zB,
-                             realtype gammaB, realtype deltaB,
-                             int lrB, void *cvadj_mem, N_Vector tmpB)
-{
-  CVadjMem ca_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  /* Forward solution from Hermite interpolation */
-  flag = getY(ca_mem, t, ytmp);
-  if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
-  } 
-
-  /* Call user's adjoint psolveB routine */
-  flag = psolve_B(t, ytmp, yB, fyB, rB, zB, gammaB, deltaB, 
-                  lrB, P_data_B, tmpB);
-
-  return(flag);
-}
-
-/*
- * CVAspilsJacTimesVec
- *
- * This routine interfaces to the CVSpgmrJacTimesVecFnB routine 
- * provided by the user.
- * NOTE: jac_data actually contains cvadj_mem
- */
-
-static int CVAspilsJacTimesVec(N_Vector vB, N_Vector JvB, realtype t, 
-                               N_Vector yB, N_Vector fyB, 
-                               void *cvadj_mem, N_Vector tmpB)
-{
-  CVadjMem ca_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  /* Forward solution from Hermite interpolation */
-  flag = getY(ca_mem, t, ytmp);
-  if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
-  } 
-
-  /* Call user's adjoint jtimesB routine */
-  flag = jtimes_B(vB, JvB, t, ytmp, yB, fyB, jac_data_B, tmpB);
-
-  return(flag);
-}
-
-/*
- * CVAgloc
- *
- * This routine interfaces to the CVLocalFnB routine 
- * provided by the user.
- * NOTE: f_data actually contains cvadj_mem
- */
-
-static void CVAgloc(long int NlocalB, realtype t, N_Vector yB, N_Vector gB, 
-                    void *cvadj_mem)
-{
-  CVadjMem ca_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  /* Forward solution from Hermite interpolation */
-  flag = getY(ca_mem, t, ytmp);
-  if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
-  } 
-
-  /* Call user's adjoint glocB routine */
-  gloc_B(NlocalB, t, ytmp, yB, gB, f_data_B);
-}
-
-/*
- * CVAcfn
- *
- * This routine interfaces to the CVCommFnB routine 
- * provided by the user.
- * NOTE: f_data actually contains cvadj_mem
- */
-
-static void CVAcfn(long int NlocalB, realtype t, N_Vector yB,
-                   void *cvadj_mem)
-{
-  CVadjMem ca_mem;
-  int flag;
-
-  ca_mem = (CVadjMem) cvadj_mem;
-
-  if (cfn_B == NULL) return;
-
-  /* Forward solution from Hermite interpolation */
-  flag = getY(ca_mem, t, ytmp);
-  if (flag != CV_SUCCESS) {
-    printf("\n\nBad t in interpolation\n\n");
-    exit(1);
-  } 
-
-  /* Call user's adjoint cfnB routine */
-  cfn_B(NlocalB, t, ytmp, yB, f_data_B);
-}
 
