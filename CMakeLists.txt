@@ -71,26 +71,26 @@ MARK_AS_ADVANCED(CLEAR
 SET(arkodelib_VERSION "1.1.0")
 SET(arkodelib_SOVERSION "1")
 
-SET(cvodelib_VERSION "2.9.0")
+SET(cvodelib_VERSION "2.0.0")
 SET(cvodelib_SOVERSION "2")
 
-SET(cvodeslib_VERSION "2.9.0")
-SET(cvodeslib_SOVERSION "2")
+SET(cvodeslib_VERSION "3.0.0")
+SET(cvodeslib_SOVERSION "3")
 
-SET(idalib_VERSION "2.9.0")
-SET(idalib_SOVERSION "2")
+SET(idalib_VERSION "3.0.0")
+SET(idalib_SOVERSION "3")
 
-SET(idaslib_VERSION "1.3.0")
+SET(idaslib_VERSION "1.0.0")
 SET(idaslib_SOVERSION "1")
 
-SET(kinsollib_VERSION "2.9.0")
+SET(kinsollib_VERSION "2.0.0")
 SET(kinsollib_SOVERSION "2")
 
-SET(cpodeslib_VERSION "0.0.0")
-SET(cpodeslib_SOVERSION "0")
+SET(cpodeslib_VERSION "1.0.0")
+SET(cpodeslib_SOVERSION "1")
 
-SET(nveclib_VERSION "2.7.0")
-SET(nveclib_SOVERSION "2")
+SET(nveclib_VERSION "1.0.0")
+SET(nveclib_SOVERSION "1")
 
 # Specify the location of additional CMAKE modules
 
