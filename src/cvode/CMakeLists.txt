@@ -164,5 +164,15 @@ INSTALL(FILES ${cvode_HEADERS} ${cvode_BL_HEADERS} DESTINATION include/cvode)
 # Install the CVODE implementation header file
 INSTALL(FILES cvode_impl.h DESTINATION include/cvode)
 
+make_pkg_config("sundials-cvode-serial" "sundials_cvode;sundials_nvecserial;m" "" "" "" "")
+IF(PTHREAD_ENABLE)
+    make_pkg_config("sundials-cvode-pthreads" "sundials_cvode;sundials_nvecpthreads;m" "" "" "" "")
+ENDIF(PTHREAD_ENABLE)
+IF(OPENMP_ENABLE)
+    make_pkg_config("sundials-cvode-openmp" "sundials_cvode;sundials_nvecopenmp;m" "" "" "" "")
+ENDIF(OPENMP_ENABLE)
+IF(MPI_ENABLE)
+    make_pkg_config("sundials-cvode-parallel" "sundials_cvode;sundials_nvecparallel;m" "" "" "" "")
+ENDIF(MPI_ENABLE)
 #
 MESSAGE(STATUS "Added CVODE module")

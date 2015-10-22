@@ -154,5 +154,15 @@ INSTALL(FILES ${ida_HEADERS} ${ida_BL_HEADERS} DESTINATION include/ida)
 # Install the IDA implementation header file
 INSTALL(FILES ida_impl.h DESTINATION include/ida)
 
+make_pkg_config("sundials-ida-serial" "sundials_ida;sundials_nvecserial;m" "" "" "" "")
+IF(PTHREAD_ENABLE)
+    make_pkg_config("sundials-ida-pthreads" "sundials_ida;sundials_nvecpthreads;m" "" "" "" "")
+ENDIF(PTHREAD_ENABLE)
+IF(OPENMP_ENABLE)
+    make_pkg_config("sundials-ida-openmp" "sundials_ida;sundials_nvecopenmp;m" "" "" "" "")
+ENDIF(OPENMP_ENABLE)
+IF(MPI_ENABLE)
+    make_pkg_config("sundials-ida-parallel" "sundials_ida;sundials_nvecparallel;m" "" "" "" "")
+ENDIF(MPI_ENABLE)
 #
 MESSAGE(STATUS "Added IDA module")

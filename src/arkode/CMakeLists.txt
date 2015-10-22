@@ -157,5 +157,15 @@ INSTALL(FILES ${arkode_HEADERS} ${arkode_BL_HEADERS} DESTINATION include/arkode)
 # Install the ARKODE implementation header file
 INSTALL(FILES arkode_impl.h DESTINATION include/arkode)
 
+make_pkg_config("sundials-arkode-serial" "sundials_arkode;sundials_nvecserial;m" "" "" "" "")
+IF(PTHREAD_ENABLE)
+    make_pkg_config("sundials-arkode-pthreads" "sundials_arkode;sundials_nvecpthreads;m" "" "" "" "")
+ENDIF(PTHREAD_ENABLE)
+IF(OPENMP_ENABLE)
+    make_pkg_config("sundials-arkode-openmp" "sundials_arkode;sundials_nvecopenmp;m" "" "" "" "")
+ENDIF(OPENMP_ENABLE)
+IF(MPI_ENABLE)
+    make_pkg_config("sundials-arkode-parallel" "sundials_arkode;sundials_nvecparallel;m" "" "" "" "")
+ENDIF(MPI_ENABLE)
 #
 MESSAGE(STATUS "Added ARKODE module")

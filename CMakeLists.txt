@@ -845,6 +845,9 @@ ELSE(SUPERLUMT_FOUND)
   INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include)
 ENDIF(SUPERLUMT_FOUND)
 
+# Load pkgconfig creation module
+INCLUDE(MakePkgConfig)
+
 # -------------------------------------------------------------
 # Add selected modules to the build system
 # -------------------------------------------------------------

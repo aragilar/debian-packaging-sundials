@@ -156,5 +156,15 @@ INSTALL(FILES ${idas_HEADERS} ${idas_BL_HEADERS} ${idas_SLU_HEADERS} DESTINATION
 # Install the IDAS implementation header file
 INSTALL(FILES idas_impl.h DESTINATION include/idas)
 
+make_pkg_config("sundials-idas-serial" "sundials_idas;sundials_nvecserial;m" "" "" "" "")
+IF(PTHREAD_ENABLE)
+    make_pkg_config("sundials-idas-pthreads" "sundials_idas;sundials_nvecpthreads;m" "" "" "" "")
+ENDIF(PTHREAD_ENABLE)
+IF(OPENMP_ENABLE)
+    make_pkg_config("sundials-idas-openmp" "sundials_idas;sundials_nvecopenmp;m" "" "" "" "")
+ENDIF(OPENMP_ENABLE)
+IF(MPI_ENABLE)
+    make_pkg_config("sundials-idas-parallel" "sundials_idas;sundials_nvecparallel;m" "" "" "" "")
+ENDIF(MPI_ENABLE)
 #
 MESSAGE(STATUS "Added IDAS module")

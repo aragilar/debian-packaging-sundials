@@ -164,5 +164,15 @@ INSTALL(FILES ${kinsol_HEADERS} ${kinsol_BL_HEADERS} ${kinsol_SLU_HEADERS} ${kin
 # Install the KINSOL implementation header file
 INSTALL(FILES kinsol_impl.h DESTINATION include/kinsol)
 
+make_pkg_config("sundials-kinsol-serial" "sundials_kinsol;sundials_nvecserial;m" "" "" "" "")
+IF(PTHREAD_ENABLE)
+    make_pkg_config("sundials-kinsol-pthreads" "sundials_kinsol;sundials_nvecpthreads;m" "" "" "" "")
+ENDIF(PTHREAD_ENABLE)
+IF(OPENMP_ENABLE)
+    make_pkg_config("sundials-kinsol-openmp" "sundials_kinsol;sundials_nvecopenmp;m" "" "" "" "")
+ENDIF(OPENMP_ENABLE)
+IF(MPI_ENABLE)
+    make_pkg_config("sundials-kinsol-parallel" "sundials_kinsol;sundials_nvecparallel;m" "" "" "" "")
+ENDIF(MPI_ENABLE)
 #
 MESSAGE(STATUS "Added KINSOL module")
