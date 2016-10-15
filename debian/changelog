@@ -1,12 +1,13 @@
-sundials (2.6.2-1) UNRELEASED; urgency=medium
+sundials (2.7.0-1) UNRELEASED; urgency=medium
 
   * [2dc8024] Imported Upstream version 2.6.0
   * [b63e430] Imported Upstream version 2.6.1
   * [f27161b] Imported Upstream version 2.6.2
   * [cfedc6f] Updated packaging
   * [58d97c4] Mark the 2 new idas symbols
+  * [5e50eec] New upstream version 2.7.0
 
- -- James Tocknell <aragilar@gmail.com>  Sat, 15 Oct 2016 14:56:12 +1100
+ -- James Tocknell <aragilar@gmail.com>  Sat, 15 Oct 2016 15:26:50 +1100
 
 sundials (2.5.0-3) unstable; urgency=low
 
