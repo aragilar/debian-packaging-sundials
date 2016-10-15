@@ -21,7 +21,7 @@ Subject: Fix library paths for multiarch
  15 files changed, 37 insertions(+), 33 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index d890a37..e6a47d2 100644
+index 08b6203..237889c 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -23,7 +23,7 @@
@@ -80,10 +80,10 @@ index cff9228..108d45a 100644
  #
  MESSAGE(STATUS "Added ARKODE FCMIX module")
 diff --git a/src/cvode/CMakeLists.txt b/src/cvode/CMakeLists.txt
-index b946326..891bc2a 100644
+index d47cccc..8cf860e 100644
 --- a/src/cvode/CMakeLists.txt
 +++ b/src/cvode/CMakeLists.txt
-@@ -118,7 +118,7 @@ IF(BUILD_STATIC_LIBS)
+@@ -134,7 +134,7 @@ IF(BUILD_STATIC_LIBS)
      PROPERTIES OUTPUT_NAME sundials_cvode CLEAN_DIRECT_OUTPUT 1)
  
    # Install the CVODE library
@@ -92,7 +92,7 @@ index b946326..891bc2a 100644
  
  ENDIF(BUILD_STATIC_LIBS)
  
-@@ -138,7 +138,7 @@ IF(BUILD_SHARED_LIBS)
+@@ -154,7 +154,7 @@ IF(BUILD_SHARED_LIBS)
      PROPERTIES VERSION ${cvodelib_VERSION} SOVERSION ${cvodelib_SOVERSION})
  
    # Install the CVODE library
@@ -115,7 +115,7 @@ index 44a82d4..e943c7b 100644
  #
  MESSAGE(STATUS "Added CVODE FCMIX module")
 diff --git a/src/cvodes/CMakeLists.txt b/src/cvodes/CMakeLists.txt
-index 4e33c82..9ec9c1e 100644
+index 38229df..38cc8e7 100644
 --- a/src/cvodes/CMakeLists.txt
 +++ b/src/cvodes/CMakeLists.txt
 @@ -121,7 +121,7 @@ IF(BUILD_STATIC_LIBS)
@@ -137,10 +137,10 @@ index 4e33c82..9ec9c1e 100644
  ENDIF(BUILD_SHARED_LIBS)
  
 diff --git a/src/ida/CMakeLists.txt b/src/ida/CMakeLists.txt
-index 80d5afc..37325f0 100644
+index 7aa8c84..d24a32c 100644
 --- a/src/ida/CMakeLists.txt
 +++ b/src/ida/CMakeLists.txt
-@@ -114,7 +114,7 @@ IF(BUILD_STATIC_LIBS)
+@@ -124,7 +124,7 @@ IF(BUILD_STATIC_LIBS)
      PROPERTIES OUTPUT_NAME sundials_ida CLEAN_DIRECT_OUTPUT 1)
  
    # Install the IDA library
@@ -149,7 +149,7 @@ index 80d5afc..37325f0 100644
  
  ENDIF(BUILD_STATIC_LIBS)
  
-@@ -134,7 +134,7 @@ IF(BUILD_SHARED_LIBS)
+@@ -144,7 +144,7 @@ IF(BUILD_SHARED_LIBS)
      PROPERTIES VERSION ${idalib_VERSION} SOVERSION ${idalib_SOVERSION})
  
    # Install the IDA library
@@ -171,7 +171,7 @@ index 1a4944b..10450aa 100644
  #
  MESSAGE(STATUS "Added IDA FCMIX module")
 diff --git a/src/idas/CMakeLists.txt b/src/idas/CMakeLists.txt
-index 66c760c..453a013 100644
+index 400a228..7f969e2 100644
 --- a/src/idas/CMakeLists.txt
 +++ b/src/idas/CMakeLists.txt
 @@ -126,7 +126,7 @@ IF(BUILD_STATIC_LIBS)
@@ -193,10 +193,10 @@ index 66c760c..453a013 100644
  ENDIF(BUILD_SHARED_LIBS)
  
 diff --git a/src/kinsol/CMakeLists.txt b/src/kinsol/CMakeLists.txt
-index f6908d2..855c095 100644
+index d22ed62..2cb3fad 100644
 --- a/src/kinsol/CMakeLists.txt
 +++ b/src/kinsol/CMakeLists.txt
-@@ -127,7 +127,7 @@ IF(BUILD_STATIC_LIBS)
+@@ -134,7 +134,7 @@ IF(BUILD_STATIC_LIBS)
      PROPERTIES OUTPUT_NAME sundials_kinsol CLEAN_DIRECT_OUTPUT 1)
  
    # Install the KINSOL library
@@ -205,7 +205,7 @@ index f6908d2..855c095 100644
  
  ENDIF(BUILD_STATIC_LIBS)
  
-@@ -147,7 +147,7 @@ IF(BUILD_SHARED_LIBS)
+@@ -154,7 +154,7 @@ IF(BUILD_SHARED_LIBS)
      PROPERTIES VERSION ${kinsollib_VERSION} SOVERSION ${kinsollib_SOVERSION})
  
    # Install the KINSOL library
@@ -268,7 +268,7 @@ index eab8451..c1831b9 100644
  ENDIF(FCMIX_ENABLE AND F77_FOUND)
  
 diff --git a/src/nvec_par/CMakeLists.txt b/src/nvec_par/CMakeLists.txt
-index d715726..3cc5eb0 100644
+index 8477fb4..a9f3bb2 100644
 --- a/src/nvec_par/CMakeLists.txt
 +++ b/src/nvec_par/CMakeLists.txt
 @@ -52,7 +52,7 @@ IF(BUILD_STATIC_LIBS)

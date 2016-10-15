@@ -17,10 +17,10 @@ Subject: Add pkgconfig files
  create mode 100644 config/pkgconfig.pc.in
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 0bc2822..7a3eb2f 100644
+index 9a3fdd9..20a0494 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -759,6 +759,9 @@ ELSE(SUPERLUMT_FOUND)
+@@ -845,6 +845,9 @@ ELSE(SUPERLUMT_FOUND)
    INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include)
  ENDIF(SUPERLUMT_FOUND)
  
@@ -129,10 +129,10 @@ index 460ad27..47d6220 100644
  #
  MESSAGE(STATUS "Added ARKODE module")
 diff --git a/src/cvode/CMakeLists.txt b/src/cvode/CMakeLists.txt
-index 891bc2a..c9d177c 100644
+index 8cf860e..6bb43f1 100644
 --- a/src/cvode/CMakeLists.txt
 +++ b/src/cvode/CMakeLists.txt
-@@ -148,5 +148,15 @@ INSTALL(FILES ${cvode_HEADERS} ${cvode_BL_HEADERS} DESTINATION include/cvode)
+@@ -164,5 +164,15 @@ INSTALL(FILES ${cvode_HEADERS} ${cvode_BL_HEADERS} DESTINATION include/cvode)
  # Install the CVODE implementation header file
  INSTALL(FILES cvode_impl.h DESTINATION include/cvode)
  
@@ -149,7 +149,7 @@ index 891bc2a..c9d177c 100644
  #
  MESSAGE(STATUS "Added CVODE module")
 diff --git a/src/cvodes/CMakeLists.txt b/src/cvodes/CMakeLists.txt
-index 9ec9c1e..d60d209 100644
+index 38cc8e7..9798fb0 100644
 --- a/src/cvodes/CMakeLists.txt
 +++ b/src/cvodes/CMakeLists.txt
 @@ -151,5 +151,15 @@ INSTALL(FILES ${cvodes_HEADERS}  ${cvodes_BL_HEADERS} DESTINATION include/cvodes
@@ -169,10 +169,10 @@ index 9ec9c1e..d60d209 100644
  #
  MESSAGE(STATUS "Added CVODES module")
 diff --git a/src/ida/CMakeLists.txt b/src/ida/CMakeLists.txt
-index 37325f0..a4834f1 100644
+index d24a32c..b199e13 100644
 --- a/src/ida/CMakeLists.txt
 +++ b/src/ida/CMakeLists.txt
-@@ -144,5 +144,15 @@ INSTALL(FILES ${ida_HEADERS} ${ida_BL_HEADERS} DESTINATION include/ida)
+@@ -154,5 +154,15 @@ INSTALL(FILES ${ida_HEADERS} ${ida_BL_HEADERS} DESTINATION include/ida)
  # Install the IDA implementation header file
  INSTALL(FILES ida_impl.h DESTINATION include/ida)
  
@@ -189,7 +189,7 @@ index 37325f0..a4834f1 100644
  #
  MESSAGE(STATUS "Added IDA module")
 diff --git a/src/idas/CMakeLists.txt b/src/idas/CMakeLists.txt
-index 453a013..789d557 100644
+index 7f969e2..e959b9c 100644
 --- a/src/idas/CMakeLists.txt
 +++ b/src/idas/CMakeLists.txt
 @@ -156,5 +156,15 @@ INSTALL(FILES ${idas_HEADERS} ${idas_BL_HEADERS} ${idas_SLU_HEADERS} DESTINATION
@@ -209,10 +209,10 @@ index 453a013..789d557 100644
  #
  MESSAGE(STATUS "Added IDAS module")
 diff --git a/src/kinsol/CMakeLists.txt b/src/kinsol/CMakeLists.txt
-index 855c095..ad9a991 100644
+index 2cb3fad..e650701 100644
 --- a/src/kinsol/CMakeLists.txt
 +++ b/src/kinsol/CMakeLists.txt
-@@ -157,5 +157,15 @@ INSTALL(FILES ${kinsol_HEADERS} ${kinsol_BL_HEADERS} ${kinsol_SLU_HEADERS} DESTI
+@@ -164,5 +164,15 @@ INSTALL(FILES ${kinsol_HEADERS} ${kinsol_BL_HEADERS} ${kinsol_SLU_HEADERS} ${kin
  # Install the KINSOL implementation header file
  INSTALL(FILES kinsol_impl.h DESTINATION include/kinsol)
  
