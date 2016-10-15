@@ -1,1 +1,1 @@
-usr/lib/libsundials_kinsol.so.*
+usr/lib/*/libsundials_kinsol.so.*

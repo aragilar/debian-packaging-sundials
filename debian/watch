@@ -1,4 +1,22 @@
+# Example watch control file for uscan
+# Rename this file to "watch" and then you can run the "uscan" command
+# to check for upstream updates and more.
+# See uscan(1) for format
+
+# Compulsory line, this is a version 3 file
 version=3
-opts="filenamemangle=s/.*//,dversionmangle=s/\.dfsg$//" \
-	http://computation.llnl.gov/casc/sundials/download/download.html \
-	.*'sundials-([\d.]+)'.* debian /bin/sh debian/orig-tarball.sh
+
+# Uncomment to examine a Webpage
+# <Webpage URL> <string match>
+http://computation.llnl.gov/projects/sundials/sundials-software http://computation.llnl.gov/projects/sundials/download/sundials-(.*)\.tar\.gz
+# Uncomment to examine a Webserver directory
+#http://www.example.com/pub/sundials-(.*)\.tar\.gz
+
+# Uncommment to examine a FTP server
+#ftp://ftp.example.com/pub/sundials-(.*)\.tar\.gz debian uupdate
+
+# Uncomment to find new files on sourceforge, for devscripts >= 2.9
+# http://sf.net/sundials/sundials-(.*)\.tar\.gz
+
+# Uncomment to find new files on GooglePages
+# http://example.googlepages.com/foo.html sundials-(.*)\.tar\.gz

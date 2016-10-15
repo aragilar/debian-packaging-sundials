@@ -1,21 +1,22 @@
 Source: sundials
 Priority: optional
-Section: libs
 Maintainer: Debian Science Team <debian-science-maintainers@lists.alioth.debian.org>
 Uploaders: Christophe Trophime <christophe.trophime@lncmi.cnrs.fr>,
- Sylvestre Ledru <sylvestre@debian.org>
-Build-Depends: debhelper (>= 7), autotools-dev, cdbs, quilt, gfortran, 
- libblas-dev | libblas-3gf.so, liblapack-dev | liblapack-3gf.so,
- octave-pkg-dev (>= 0.7.0)
-Standards-Version: 3.9.3
+ Sylvestre Ledru <sylvestre@debian.org>, James Tocknell <aragilar@gmail.com>
+Standards-Version: 3.9.6
+Section: libs
+Build-Depends: debhelper (>= 9), cmake, gfortran, libblas-dev | libblas.so,
+ liblapack-dev | liblapack.so
 Homepage: http://www.llnl.gov/CASC/sundials/
-Vcs-Svn: svn://svn.debian.org/svn/debian-science/packages/sundials/trunk/
-Vcs-Browser: http://svn.debian.org/viewsvn/debian-science/packages/sundials/trunk/
+Vcs-Git: git://anonscm.debian.org/debian-science/packages/sundials.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=debian-science/packages/sundials.git
 
 Package: libsundials-serial
 Architecture: any
-Depends: libsundials-cvode1, libsundials-cvodes2, libsundials-ida2,
- libsundials-idas0, libsundials-kinsol1, libsundials-nvecserial0, ${misc:Depends}
+Multi-Arch: same
+Depends: libsundials-cvode2, libsundials-cvodes3, libsundials-ida3,
+ libsundials-idas1, libsundials-arkode1, libsundials-kinsol2,
+ libsundials-nvecserial1, ${misc:Depends}
 Conflicts: libsundials-serial0
 Replaces: libsundials-serial0
 Description: SUit of Nonlinear and DIfferential/ALgebraic equation Solvers
@@ -28,50 +29,72 @@ Description: SUit of Nonlinear and DIfferential/ALgebraic equation Solvers
  libraries for the subcomponents of SUNDIALS: CVODE, CVODES, IDA,
  KINSOL, and NVECTOR_SERIAL.
 
-Package: libsundials-cvode1
+Package: libsundials-cvode2
 Architecture: any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends}
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: ordinary differentialequation solver (SUNDIALS library)
  This package contains the library for ordinary differential equation
  (ODE) system solvers from SUNDIALS (SUit of Nonlinear and
  DIfferential/ALgebraic equation Solvers).
 
-Package: libsundials-cvodes2
+Package: libsundials-cvodes3
 Architecture: any
+Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: ${misc:Pre-Depends}
 Description: ODE solver with sensistivity analysis (SUNDIALS library)
  This package contains the library for ordinary differential equation
  (ODE) system solver with sensistivity analysis capabilities from
  SUNDIALS (SUit of Nonlinear and DIfferential/ALgebraic equation
  Solvers).
 
-Package: libsundials-ida2
+Package: libsundials-ida3
 Architecture: any
+Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: ${misc:Pre-Depends}
 Description: differential-algebraic system solver (SUNDIALS library)
  This package contains the library for differential-algebraic system
  (IDA) solver from SUNDIALS (SUit of Nonlinear and
   DIfferential/ALgebraic equation Solvers).
 
-Package: libsundials-idas0
+Package: libsundials-idas1
 Architecture: any
+Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: ${misc:Pre-Depends}
 Description: IDA solver with sensitivity capabilities (SUNDIALS library)
  This package contains the library for differential-algebraic system
  with Sensitivity capabilities (IDAS) solver from SUNDIALS (SUit of 
  Nonlinear and DIfferential/ALgebraic equation Solvers).
  
-Package: libsundials-kinsol1
+Package: libsundials-kinsol2
 Architecture: any
+Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: ${misc:Pre-Depends}
 Description: KINSOL solver (SUNDIALS library)
  This package contain the library for KINSOL (nonlinear algebraic
  systems) system solver from SUNDIALS (SUit of Nonlinear and
  DIfferential/ALgebraic equation Solvers).
 
-Package: libsundials-nvecserial0
+Package: libsundials-arkode1
 Architecture: any
+Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: ${misc:Pre-Depends}
+Description: ordinary differential equation solver (SUNDIALS library)
+ This package contains the library for ordinary differential equation
+ (ODE) system solvers from SUNDIALS (SUit of Nonlinear and
+ DIfferential/ALgebraic equation Solvers).
+
+Package: libsundials-nvecserial1
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Pre-Depends: ${misc:Pre-Depends}
 Description: vector operations library (SUNDIALS library)
  This package provides implementations for all vector operations
  defined by the generic NVECTOR module in the table of operations for
@@ -81,6 +104,7 @@ Description: vector operations library (SUNDIALS library)
 Package: libsundials-serial-dev
 Section: libdevel
 Architecture: any
+Multi-Arch: same
 Depends: libsundials-serial (= ${binary:Version}), ${misc:Depends},
  libblas-dev | libatlas-base-dev | libopenblas-dev,
  liblapack-dev | libatlas-base-dev
@@ -95,30 +119,17 @@ Description: SUNDIALS development files
  SUNDIALS in C and, in case of FCVODE and FKINSOL, Fortran.  It also
  contains various example programs distributed by the upstream authors.
 
-#Package: libsundials-serial-doc
-#Section: doc
-#Architecture: all
-#Depends: ${misc:Depends}
-#Recommends: libsundials-serial-dev
-#Description: SUNDIALS documentation files
-# The family of solvers referred to as SUNDIALS (SUit of Nonlinear and
-# DIfferential/ALgebraic equation Solvers) consists of solvers CVODE
-# (for ODE systems), CVODES (ODE with sensitivity analysis capabilities),
-# IDA (for differential-algebraic systems), and KINSOL (for nonlinear
-# algebraic systems).
-# .
-# This package contains SUNDIALS documentation.
-
-Package: octave-sundials
-Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, octave
+Package: libsundials-serial-doc
+Section: doc
+Architecture: all
+Multi-Arch: foreign
+Depends: ${misc:Depends}
 Recommends: libsundials-serial-dev
-Description: SUNDIALS  for octave
+Description: SUNDIALS documentation files
  The family of solvers referred to as SUNDIALS (SUit of Nonlinear and
  DIfferential/ALgebraic equation Solvers) consists of solvers CVODE
  (for ODE systems), CVODES (ODE with sensitivity analysis capabilities),
  IDA (for differential-algebraic systems), and KINSOL (for nonlinear
  algebraic systems).
  .
- This package contains SUNDIALS plugins for octave.
-
+ This package contains SUNDIALS documentation.

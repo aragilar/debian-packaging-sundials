@@ -1,5 +1,3 @@
-makefile.patch
-#sh4.patch
-fix-format-error.patch
-octave-sundialstb.patch
-link-blas-lapack.patch
+Fix-library-paths-for-multiarch.patch
+ABI-bump.patch
+Add-pkgconfig-files.patch

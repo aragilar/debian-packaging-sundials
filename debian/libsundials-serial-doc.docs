@@ -2,7 +2,6 @@
 ./doc/ida/ida_examples.pdf
 ./doc/cvodes/cvs_guide.pdf
 ./doc/cvodes/cvs_examples.pdf
-./doc/sundialsTB/sundialsTB.pdf
 ./doc/idas/idas_examples.pdf
 ./doc/idas/idas_guide.pdf
 ./doc/kinsol/kin_examples.pdf

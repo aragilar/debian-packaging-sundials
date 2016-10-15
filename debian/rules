@@ -1,94 +1,31 @@
 #!/usr/bin/make -f
-# -*- makefile -*-
+# See debhelper(7) (uncomment to enable)
+# output every command that modifies files on the build system.
+#export DH_VERBOSE = 1
 
-include /usr/share/cdbs/1/rules/debhelper.mk
-include /usr/share/cdbs/1/class/autotools.mk
-include /usr/share/cdbs/1/rules/patchsys-quilt.mk
+# see EXAMPLES in dpkg-buildflags(1) and read /usr/share/dpkg/*
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/default.mk
 
-#include /usr/share/hardening-includes/hardening.make
-#
-#CFLAGS=$(shell dpkg-buildflags --get CFLAGS)
-#LDFLAGS=$(shell dpkg-buildflags --get LDFLAGS)
-#CFLAGS+=$(HARDENING_CFLAGS)
-#LDFLAGS+=$(HARDENING_LDFLAGS)
+# see FEATURE AREAS in dpkg-buildflags(1)
+#export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
-debusr := $(DEB_DESTDIR)usr
-debexp = debian/libsundials-serial-dev/usr/share/doc/libsundials-serial-dev/examples
+# see ENVIRONMENT in dpkg-buildflags(1)
+# package maintainers to append CFLAGS
+#export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+# package maintainers to append LDFLAGS
+#export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
-DEB_AUTO_UPDATE_AUTOMAKE := 1.11
 
-DEB_CONFIGURE_EXTRA_FLAGS := --enable-shared --disable-mpi --enable-examples
-DEB_CONFIGURE_SCRIPT_ENV += F77="gfortran"
-DEB_MAKE_INSTALL_TARGET := install prefix=$(debusr) EXS_INSTDIR=$(DEB_DESTDIR)$(debexp)
+# main packaging script based on dh7 syntax
+%:
+	dh $@ 
 
-DEB_INSTALL_MANPAGES_libsundials-serial-dev := debian/sundials-config.1
-DEB_INSTALL_EXAMPLES_libsundials-serial-dev := examples/*
-DEB_DH_INSTALL_SOURCEDIR = $(DEB_DESTDIR)
+override_dh_auto_configure:
+	dh_auto_configure -- \
+	-DFCMIX_ENABLE=ON \
+	-DLAPACK_ENABLE=ON
 
-DEB_COMPRESS_EXCLUDE = .c .out .f
 
-USCAN_DESTDIR := $(CURDIR)/../tarballs
-DEB_STRIPPED_UPSTREAM_VERSION = $(shell echo $(DEB_UPSTREAM_VERSION) | sed -n -e 's/\.dfsg.*$$//p')
 
-# Get the appropriate paths for the installation of the Octave files
-mpath = $(shell octave-config -p LOCALFCNFILEDIR)
-bpath = $(shell octave-config -p LOCALARCHLIBDIR)
 
-# The following hack is necessary because the upstream makefiles do
-# not install $libdir and $includedir or $mandir
-common-install-prehook-impl::
-	mkdir -p $(debusr)/lib
-	mkdir -p $(debusr)/include
-	mkdir -p $(debusr)/share/man/man1
-
-build/libsundials-serial::
-	$(SHELL) debian/check.sh
-
-build/octave-sundials::
-	mkdir -p sundialsTB/octave
-	cd sundialsTB && octave -fV install_STB.m
-	strip sundialsTB/octave/sundialsTB/cvodes/cvm/cvm.mex
-	strip sundialsTB/octave/sundialsTB/idas/idm/idm.mex
-	strip sundialsTB/octave/sundialsTB/kinsol/kim/kim.mex
-
-install/octave-sundials::
-	mkdir -p debian/tmp/$(mpath)
-	mkdir -p debian/tmp/$(bpath)/sundialsTB/cvodes/cvm/
-	mv sundialsTB/octave/sundialsTB/cvodes/cvm/cvm.mex debian/tmp/$(bpath)/sundialsTB/cvodes/cvm
-	mkdir -p debian/tmp/$(bpath)/sundialsTB/idas/idm/
-	mv sundialsTB/octave/sundialsTB/idas/idm/idm.mex debian/tmp/$(bpath)/sundialsTB/idas/idm
-	mkdir -p debian/tmp/$(bpath)/sundialsTB/kinsol/kim
-	mv sundialsTB/octave/sundialsTB/kinsol/kim/kim.mex debian/tmp/$(bpath)/sundialsTB/kinsol/kim
-	mv sundialsTB/octave/* debian/tmp/$(mpath)
-	rm debian/tmp/$(mpath)/sundialsTB/LICENSE
-
-binary-install/libsundials-serial-dev::
-	find $(deblib) \( -name \*.la \) -exec rm -rf {} +
-	find $(debexp) \( -name \*.libs \) -exec rm -rf {} +
-	find $(debexp) \
-	        -type f -a ! \( -name README -o -name \*.out		\
-				   -o -name \*.f -o -name \*.c \)	\
-		-a -exec rm -f \{\} \;
-
-clean::
-	find examples \
-	        -type f -a  \( -name \*.o -o -name \*.out \)	\
-		-a -exec rm -f \{\} \;
-	find sundialsTB \
-	        -type f -a  \( -name \*.o -o -name \*.mex \)	\
-		-a -exec rm -f \{\} \;
-	rm -rf sundialsTB/octave
-	rm -rf bin/makefile-update.sh
-	
-
-get-orig-source:
-	mkdir -p $(USCAN_DESTDIR)
-	uscan --force-download  --no-symlink --verbose --destdir $(USCAN_DESTDIR)
-	tar -C $(USCAN_DESTDIR) -xzf $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)_$(DEB_STRIPPED_UPSTREAM_VERSION).orig.tar.gz
-	rm -f $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)*.tar.gz
-	find $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION) -name \*.pdf | xargs rm
-	cd $(USCAN_DESTDIR) && GZIP=-9 tar -czf \
-	   $(CURDIR)/$(DEB_SOURCE_PACKAGE)_$(DEB_UPSTREAM_VERSION).orig.tar.gz \
-	   $(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION)
-	rm -rf $(USCAN_DESTDIR)/$(DEB_SOURCE_PACKAGE)-$(DEB_STRIPPED_UPSTREAM_VERSION)
-	

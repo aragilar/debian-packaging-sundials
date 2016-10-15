@@ -1,0 +1,230 @@
+From: James Tocknell <aragilar@gmail.com>
+Date: Thu, 22 Oct 2015 16:27:30 +1100
+Subject: Add pkgconfig files
+
+---
+ CMakeLists.txt             |  3 +++
+ config/MakePkgConfig.cmake | 53 ++++++++++++++++++++++++++++++++++++++++++++++
+ config/pkgconfig.pc.in     | 13 ++++++++++++
+ src/arkode/CMakeLists.txt  | 10 +++++++++
+ src/cvode/CMakeLists.txt   | 10 +++++++++
+ src/cvodes/CMakeLists.txt  | 10 +++++++++
+ src/ida/CMakeLists.txt     | 10 +++++++++
+ src/idas/CMakeLists.txt    | 10 +++++++++
+ src/kinsol/CMakeLists.txt  | 10 +++++++++
+ 9 files changed, 129 insertions(+)
+ create mode 100644 config/MakePkgConfig.cmake
+ create mode 100644 config/pkgconfig.pc.in
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0bc2822..7a3eb2f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -759,6 +759,9 @@ ELSE(SUPERLUMT_FOUND)
+   INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include)
+ ENDIF(SUPERLUMT_FOUND)
+ 
++# Load pkgconfig creation module
++INCLUDE(MakePkgConfig)
++
+ # -------------------------------------------------------------
+ # Add selected modules to the build system
+ # -------------------------------------------------------------
+diff --git a/config/MakePkgConfig.cmake b/config/MakePkgConfig.cmake
+new file mode 100644
+index 0000000..146e3c6
+--- /dev/null
++++ b/config/MakePkgConfig.cmake
+@@ -0,0 +1,53 @@
++function(make_pkg_config
++    libname libs requires private_libs private_requires additional_flags
++)
++    SET(PKG_CONFIG_REQUIRES "")
++    foreach(req IN LISTS requires)
++        SET(PKG_CONFIG_REQUIRES
++            "${PKG_CONFIG_REQUIRES}, ${req}"
++        )
++    endforeach(req)
++
++    SET(PKG_CONFIG_LIBDIR
++        "\${prefix}/${CMAKE_INSTALL_LIBDIR}"
++    )
++
++    SET(PKG_CONFIG_INCLUDEDIR
++        "\${prefix}/${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
++    )
++
++    SET(PKG_CONFIG_LIBS
++        "-L\${libdir}"
++    )
++    foreach(lib IN LISTS libs)
++        SET(PKG_CONFIG_LIBS
++            "${PKG_CONFIG_LIBS} -l${lib}"
++        )
++    endforeach(lib)
++
++    SET(PKG_CONFIG_CFLAGS
++        "-I\${includedir} ${additional_flags}"
++    )
++
++    SET(PKG_CONFIG_REQUIRES_PRIVATE "")
++    foreach(priv_req IN LISTS private_requires)
++        SET(PKG_CONFIG_REQUIRES_PRIVATE
++            "${PKG_CONFIG_REQUIRES_PRIVATE}, ${priv_req}"
++        )
++    endforeach(priv_req)
++
++    SET(PKG_CONFIG_LIBS_PRIVATE
++        ${private_libs}
++    )
++
++    CONFIGURE_FILE(
++      "${CMAKE_SOURCE_DIR}/config/pkgconfig.pc.in"
++      "${CMAKE_BINARY_DIR}/${libname}.pc"
++      @ONLY
++    )
++
++
++
++    INSTALL(FILES "${CMAKE_BINARY_DIR}/${libname}.pc"
++        DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
++endfunction(make_pkg_config)
+diff --git a/config/pkgconfig.pc.in b/config/pkgconfig.pc.in
+new file mode 100644
+index 0000000..51fa9c4
+--- /dev/null
++++ b/config/pkgconfig.pc.in
+@@ -0,0 +1,13 @@
++prefix=@CMAKE_INSTALL_PREFIX@
++exec_prefix=${prefix}
++includedir=@PKG_CONFIG_INCLUDEDIR@
++libdir=@PKG_CONFIG_LIBDIR@
++
++Name: @PROJECT_NAME@
++Description: @PROJECT_DESCRIPTION@
++Version: @PROJECT_VERSION@
++Requires: @PKG_CONFIG_REQUIRES@
++Requires.private: @PKG_CONFIG_REQUIRES_PRIVATE@
++Libs: @PKG_CONFIG_LIBS@
++Libs.private: @PKG_CONFIG_LIBS_PRIVATE@
++Cflags: @PKG_CONFIG_CFLAGS@
+diff --git a/src/arkode/CMakeLists.txt b/src/arkode/CMakeLists.txt
+index 460ad27..47d6220 100644
+--- a/src/arkode/CMakeLists.txt
++++ b/src/arkode/CMakeLists.txt
+@@ -157,5 +157,15 @@ INSTALL(FILES ${arkode_HEADERS} ${arkode_BL_HEADERS} DESTINATION include/arkode)
+ # Install the ARKODE implementation header file
+ INSTALL(FILES arkode_impl.h DESTINATION include/arkode)
+ 
++make_pkg_config("sundials-arkode-serial" "sundials_arkode;sundials_nvecserial;m" "" "" "" "")
++IF(PTHREAD_ENABLE)
++    make_pkg_config("sundials-arkode-pthreads" "sundials_arkode;sundials_nvecpthreads;m" "" "" "" "")
++ENDIF(PTHREAD_ENABLE)
++IF(OPENMP_ENABLE)
++    make_pkg_config("sundials-arkode-openmp" "sundials_arkode;sundials_nvecopenmp;m" "" "" "" "")
++ENDIF(OPENMP_ENABLE)
++IF(MPI_ENABLE)
++    make_pkg_config("sundials-arkode-parallel" "sundials_arkode;sundials_nvecparallel;m" "" "" "" "")
++ENDIF(MPI_ENABLE)
+ #
+ MESSAGE(STATUS "Added ARKODE module")
+diff --git a/src/cvode/CMakeLists.txt b/src/cvode/CMakeLists.txt
+index 891bc2a..c9d177c 100644
+--- a/src/cvode/CMakeLists.txt
++++ b/src/cvode/CMakeLists.txt
+@@ -148,5 +148,15 @@ INSTALL(FILES ${cvode_HEADERS} ${cvode_BL_HEADERS} DESTINATION include/cvode)
+ # Install the CVODE implementation header file
+ INSTALL(FILES cvode_impl.h DESTINATION include/cvode)
+ 
++make_pkg_config("sundials-cvode-serial" "sundials_cvode;sundials_nvecserial;m" "" "" "" "")
++IF(PTHREAD_ENABLE)
++    make_pkg_config("sundials-cvode-pthreads" "sundials_cvode;sundials_nvecpthreads;m" "" "" "" "")
++ENDIF(PTHREAD_ENABLE)
++IF(OPENMP_ENABLE)
++    make_pkg_config("sundials-cvode-openmp" "sundials_cvode;sundials_nvecopenmp;m" "" "" "" "")
++ENDIF(OPENMP_ENABLE)
++IF(MPI_ENABLE)
++    make_pkg_config("sundials-cvode-parallel" "sundials_cvode;sundials_nvecparallel;m" "" "" "" "")
++ENDIF(MPI_ENABLE)
+ #
+ MESSAGE(STATUS "Added CVODE module")
+diff --git a/src/cvodes/CMakeLists.txt b/src/cvodes/CMakeLists.txt
+index 9ec9c1e..d60d209 100644
+--- a/src/cvodes/CMakeLists.txt
++++ b/src/cvodes/CMakeLists.txt
+@@ -151,5 +151,15 @@ INSTALL(FILES ${cvodes_HEADERS}  ${cvodes_BL_HEADERS} DESTINATION include/cvodes
+ # Install the CVODES implementation header file
+ INSTALL(FILES cvodes_impl.h DESTINATION include/cvodes)
+ 
++make_pkg_config("sundials-cvodes-serial" "sundials_cvodes;sundials_nvecserial;m" "" "" "" "")
++IF(PTHREAD_ENABLE)
++    make_pkg_config("sundials-cvodes-pthreads" "sundials_cvodes;sundials_nvecpthreads;m" "" "" "" "")
++ENDIF(PTHREAD_ENABLE)
++IF(OPENMP_ENABLE)
++    make_pkg_config("sundials-cvodes-openmp" "sundials_cvodes;sundials_nvecopenmp;m" "" "" "" "")
++ENDIF(OPENMP_ENABLE)
++IF(MPI_ENABLE)
++    make_pkg_config("sundials-cvodes-parallel" "sundials_cvodes;sundials_nvecparallel;m" "" "" "" "")
++ENDIF(MPI_ENABLE)
+ #
+ MESSAGE(STATUS "Added CVODES module")
+diff --git a/src/ida/CMakeLists.txt b/src/ida/CMakeLists.txt
+index 37325f0..a4834f1 100644
+--- a/src/ida/CMakeLists.txt
++++ b/src/ida/CMakeLists.txt
+@@ -144,5 +144,15 @@ INSTALL(FILES ${ida_HEADERS} ${ida_BL_HEADERS} DESTINATION include/ida)
+ # Install the IDA implementation header file
+ INSTALL(FILES ida_impl.h DESTINATION include/ida)
+ 
++make_pkg_config("sundials-ida-serial" "sundials_ida;sundials_nvecserial;m" "" "" "" "")
++IF(PTHREAD_ENABLE)
++    make_pkg_config("sundials-ida-pthreads" "sundials_ida;sundials_nvecpthreads;m" "" "" "" "")
++ENDIF(PTHREAD_ENABLE)
++IF(OPENMP_ENABLE)
++    make_pkg_config("sundials-ida-openmp" "sundials_ida;sundials_nvecopenmp;m" "" "" "" "")
++ENDIF(OPENMP_ENABLE)
++IF(MPI_ENABLE)
++    make_pkg_config("sundials-ida-parallel" "sundials_ida;sundials_nvecparallel;m" "" "" "" "")
++ENDIF(MPI_ENABLE)
+ #
+ MESSAGE(STATUS "Added IDA module")
+diff --git a/src/idas/CMakeLists.txt b/src/idas/CMakeLists.txt
+index 453a013..789d557 100644
+--- a/src/idas/CMakeLists.txt
++++ b/src/idas/CMakeLists.txt
+@@ -156,5 +156,15 @@ INSTALL(FILES ${idas_HEADERS} ${idas_BL_HEADERS} ${idas_SLU_HEADERS} DESTINATION
+ # Install the IDAS implementation header file
+ INSTALL(FILES idas_impl.h DESTINATION include/idas)
+ 
++make_pkg_config("sundials-idas-serial" "sundials_idas;sundials_nvecserial;m" "" "" "" "")
++IF(PTHREAD_ENABLE)
++    make_pkg_config("sundials-idas-pthreads" "sundials_idas;sundials_nvecpthreads;m" "" "" "" "")
++ENDIF(PTHREAD_ENABLE)
++IF(OPENMP_ENABLE)
++    make_pkg_config("sundials-idas-openmp" "sundials_idas;sundials_nvecopenmp;m" "" "" "" "")
++ENDIF(OPENMP_ENABLE)
++IF(MPI_ENABLE)
++    make_pkg_config("sundials-idas-parallel" "sundials_idas;sundials_nvecparallel;m" "" "" "" "")
++ENDIF(MPI_ENABLE)
+ #
+ MESSAGE(STATUS "Added IDAS module")
+diff --git a/src/kinsol/CMakeLists.txt b/src/kinsol/CMakeLists.txt
+index 855c095..ad9a991 100644
+--- a/src/kinsol/CMakeLists.txt
++++ b/src/kinsol/CMakeLists.txt
+@@ -157,5 +157,15 @@ INSTALL(FILES ${kinsol_HEADERS} ${kinsol_BL_HEADERS} ${kinsol_SLU_HEADERS} DESTI
+ # Install the KINSOL implementation header file
+ INSTALL(FILES kinsol_impl.h DESTINATION include/kinsol)
+ 
++make_pkg_config("sundials-kinsol-serial" "sundials_kinsol;sundials_nvecserial;m" "" "" "" "")
++IF(PTHREAD_ENABLE)
++    make_pkg_config("sundials-kinsol-pthreads" "sundials_kinsol;sundials_nvecpthreads;m" "" "" "" "")
++ENDIF(PTHREAD_ENABLE)
++IF(OPENMP_ENABLE)
++    make_pkg_config("sundials-kinsol-openmp" "sundials_kinsol;sundials_nvecopenmp;m" "" "" "" "")
++ENDIF(OPENMP_ENABLE)
++IF(MPI_ENABLE)
++    make_pkg_config("sundials-kinsol-parallel" "sundials_kinsol;sundials_nvecparallel;m" "" "" "" "")
++ENDIF(MPI_ENABLE)
+ #
+ MESSAGE(STATUS "Added KINSOL module")

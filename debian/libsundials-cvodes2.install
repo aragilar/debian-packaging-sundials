@@ -1,1 +1,1 @@
-usr/lib/libsundials_cvodes.so.*
+usr/lib/*/libsundials_cvodes.so.*

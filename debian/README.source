@@ -1,9 +1,0 @@
-sundials source for Debian
----------------------------
-
-Packaging makes use of CDBS and quilt. For the latter see
-`/usr/share/doc/quilt/README.source'.
-
-Documentation files included in the distribution have been removed
-You can find sundials documentation on 
-https://computation.llnl.gov/casc/sundials/documentation/documentation.html
