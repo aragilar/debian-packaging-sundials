@@ -120,7 +120,9 @@ libsundials_idas.so.1 libsundials-idas1 #MINVER#
  IDAInitBS@Base 2.6.0
  IDAInitialSetup@Base 2.6.0
  IDALapackBand@Base 2.6.0
+ IDALapackBandB@Base 2.6.2
  IDALapackDense@Base 2.6.0
+ IDALapackDenseB@Base 2.6.2
  IDAProcessError@Base 2.6.0
  IDAQuadFree@Base 2.6.0
  IDAQuadInit@Base 2.6.0
