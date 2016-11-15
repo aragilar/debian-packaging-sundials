@@ -9,7 +9,7 @@ SUNR(abs/exp/powerI/powerR/sqrt) means that the ABI changed.
  1 file changed, 11 insertions(+), 11 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 237889c..9a3fdd9 100644
+index 5c7dbad..20a0494 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -71,26 +71,26 @@ MARK_AS_ADVANCED(CLEAR

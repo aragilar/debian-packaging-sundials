@@ -17,7 +17,7 @@ Subject: Add pkgconfig files
  create mode 100644 config/pkgconfig.pc.in
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 9a3fdd9..20a0494 100644
+index 237889c..5c7dbad 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -845,6 +845,9 @@ ELSE(SUPERLUMT_FOUND)

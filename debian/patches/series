@@ -1,3 +1,4 @@
 Fix-library-paths-for-multiarch.patch
-ABI-bump.patch
 Add-pkgconfig-files.patch
+ABI-bump.patch
+ABI-bump-for-changes-to-sparse-matrix-support.patch

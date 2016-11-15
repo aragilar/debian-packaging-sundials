@@ -3,7 +3,7 @@ Priority: optional
 Maintainer: Debian Science Team <debian-science-maintainers@lists.alioth.debian.org>
 Uploaders: Christophe Trophime <christophe.trophime@lncmi.cnrs.fr>,
  Sylvestre Ledru <sylvestre@debian.org>, James Tocknell <aragilar@gmail.com>
-Standards-Version: 3.9.6
+Standards-Version: 3.9.8
 Section: libs
 Build-Depends: debhelper (>= 9), cmake, gfortran, libblas-dev | libblas.so,
  liblapack-dev | liblapack.so
@@ -14,8 +14,8 @@ Vcs-Browser: http://anonscm.debian.org/gitweb/?p=debian-science/packages/sundial
 Package: libsundials-serial
 Architecture: any
 Multi-Arch: same
-Depends: libsundials-cvode2, libsundials-cvodes3, libsundials-ida3,
- libsundials-idas1, libsundials-arkode1, libsundials-kinsol2,
+Depends: libsundials-cvode3, libsundials-cvodes4, libsundials-ida4,
+ libsundials-idas2, libsundials-arkode2, libsundials-kinsol3,
  libsundials-nvecserial1, ${misc:Depends}
 Conflicts: libsundials-serial0
 Replaces: libsundials-serial0
@@ -29,7 +29,7 @@ Description: SUit of Nonlinear and DIfferential/ALgebraic equation Solvers
  libraries for the subcomponents of SUNDIALS: CVODE, CVODES, IDA,
  KINSOL, and NVECTOR_SERIAL.
 
-Package: libsundials-cvode2
+Package: libsundials-cvode3
 Architecture: any
 Multi-Arch: same
 Pre-Depends: ${misc:Pre-Depends}
@@ -39,7 +39,7 @@ Description: ordinary differentialequation solver (SUNDIALS library)
  (ODE) system solvers from SUNDIALS (SUit of Nonlinear and
  DIfferential/ALgebraic equation Solvers).
 
-Package: libsundials-cvodes3
+Package: libsundials-cvodes4
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -50,7 +50,7 @@ Description: ODE solver with sensistivity analysis (SUNDIALS library)
  SUNDIALS (SUit of Nonlinear and DIfferential/ALgebraic equation
  Solvers).
 
-Package: libsundials-ida3
+Package: libsundials-ida4
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -60,7 +60,7 @@ Description: differential-algebraic system solver (SUNDIALS library)
  (IDA) solver from SUNDIALS (SUit of Nonlinear and
   DIfferential/ALgebraic equation Solvers).
 
-Package: libsundials-idas1
+Package: libsundials-idas2
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -70,7 +70,7 @@ Description: IDA solver with sensitivity capabilities (SUNDIALS library)
  with Sensitivity capabilities (IDAS) solver from SUNDIALS (SUit of 
  Nonlinear and DIfferential/ALgebraic equation Solvers).
  
-Package: libsundials-kinsol2
+Package: libsundials-kinsol3
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
@@ -80,7 +80,7 @@ Description: KINSOL solver (SUNDIALS library)
  systems) system solver from SUNDIALS (SUit of Nonlinear and
  DIfferential/ALgebraic equation Solvers).
 
-Package: libsundials-arkode1
+Package: libsundials-arkode2
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}

@@ -31,6 +31,8 @@ libsundials_nvecserial.so.1 libsundials-nvecserial1 #MINVER#
  N_VDiv_Serial@Base 2.6.0
  N_VDotProd_Serial@Base 2.6.0
  N_VGetArrayPointer_Serial@Base 2.6.0
+ N_VGetLength_Serial@Base 2.7.0
+ N_VGetVectorID_Serial@Base 2.7.0
  N_VInvTest_Serial@Base 2.6.0
  N_VInv_Serial@Base 2.6.0
  N_VL1Norm_Serial@Base 2.6.0
