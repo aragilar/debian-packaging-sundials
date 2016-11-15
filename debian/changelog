@@ -6,8 +6,10 @@ sundials (2.7.0-1) UNRELEASED; urgency=medium
   * [cfedc6f] Updated packaging
   * [58d97c4] Mark the 2 new idas symbols
   * [5e50eec] New upstream version 2.7.0
+  * [495b425] Refresh patches
+  * [f578819] Update symbols
 
- -- James Tocknell <aragilar@gmail.com>  Sat, 15 Oct 2016 15:26:50 +1100
+ -- James Tocknell <aragilar@gmail.com>  Tue, 15 Nov 2016 15:35:37 +1100
 
 sundials (2.5.0-3) unstable; urgency=low
 
